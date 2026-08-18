@@ -6,8 +6,12 @@ from parallax.data.vnat import (
     APPLICATION_TO_CATEGORY,
     FEATURE_COUNT,
     FEATURE_LABEL_COLUMN,
+    FEATURE_RELEASE_1_SHA256,
+    FEATURE_RELEASE_1_SIZE_BYTES,
     MIN_PACKETS_PER_WINDOW,
     RAW_COLUMNS,
+    RAW_RELEASE_1_SHA256,
+    RAW_RELEASE_1_SIZE_BYTES,
     TIME_BIN_SECONDS,
     WINDOW_SECONDS,
     Application,
@@ -90,6 +94,14 @@ def test_release_contract_constants() -> None:
     )
     assert FEATURE_LABEL_COLUMN == "labels"
     assert FEATURE_COUNT == 129
+    assert RAW_RELEASE_1_SIZE_BYTES == 1_045_436_008
+    assert RAW_RELEASE_1_SHA256 == (
+        "5d0c3d76cd292f19e25b5229719264bc1ddd71920a20bb27a7dec6c7138914de"
+    )
+    assert FEATURE_RELEASE_1_SIZE_BYTES == 9_005_973
+    assert FEATURE_RELEASE_1_SHA256 == (
+        "9e435b50743bec6eed288e9707878f624861dcdd7700165955e2509fa47d0f30"
+    )
     assert WINDOW_SECONDS == 40.96
     assert TIME_BIN_SECONDS == 0.01
     assert MIN_PACKETS_PER_WINDOW == 20

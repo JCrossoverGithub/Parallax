@@ -1,3 +1,4 @@
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, cast
 from warnings import catch_warnings, simplefilter
@@ -34,6 +35,10 @@ def _valid_dataframe() -> pd.DataFrame:
             ),
         }
     )
+
+
+def _sha256_file(path: Path) -> str:
+    return sha256(path.read_bytes()).hexdigest()
 
 
 def test_inspect_raw_dataframe_summarizes_valid_data() -> None:
@@ -132,7 +137,7 @@ def test_inspect_vnat_file_reports_provenance(tmp_path: Path) -> None:
         simplefilter("ignore", pd.errors.PerformanceWarning)
         _valid_dataframe().to_hdf(path, key="data")
 
-    report = inspect_vnat_file(path)
+    report = inspect_vnat_file(path, expected_sha256=_sha256_file(path))
     serialized = report.as_dict()
 
     assert report.source == str(path)
@@ -146,7 +151,17 @@ def test_inspect_vnat_file_requires_existing_file(tmp_path: Path) -> None:
     path = tmp_path / "missing.h5"
 
     with pytest.raises(VnatDatasetError, match="does not exist"):
-        inspect_vnat_file(path)
+        inspect_vnat_file(path, expected_sha256="0" * 64)
+
+
+def test_inspect_vnat_file_rejects_checksum_mismatch_before_hdf_load(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "untrusted.h5"
+    path.write_text("not an HDF5 file", encoding="utf-8")
+
+    with pytest.raises(VnatDatasetError, match="SHA-256 mismatch"):
+        inspect_vnat_file(path, expected_sha256="0" * 64)
 
 
 def test_inspect_vnat_file_wraps_hdf_errors(tmp_path: Path) -> None:
@@ -156,7 +171,7 @@ def test_inspect_vnat_file_wraps_hdf_errors(tmp_path: Path) -> None:
         _valid_dataframe().to_hdf(path, key="wrong_key")
 
     with pytest.raises(VnatDatasetError, match="could not read VNAT dataframe"):
-        inspect_vnat_file(path)
+        inspect_vnat_file(path, expected_sha256=_sha256_file(path))
 
 
 def test_inspect_vnat_file_requires_dataframe_content(tmp_path: Path) -> None:
@@ -164,4 +179,4 @@ def test_inspect_vnat_file_requires_dataframe_content(tmp_path: Path) -> None:
     pd.Series([1, 2, 3]).to_hdf(path, key="data")
 
     with pytest.raises(VnatDatasetError, match="expected a dataframe"):
-        inspect_vnat_file(path)
+        inspect_vnat_file(path, expected_sha256=_sha256_file(path).upper())

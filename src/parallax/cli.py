@@ -6,7 +6,7 @@ import sys
 from collections.abc import Sequence
 
 from parallax import __version__
-from parallax.data import inspect_vnat_file
+from parallax.data import RAW_RELEASE_1_SHA256, inspect_vnat_file
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -19,6 +19,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "inspect", help="validate and summarize a raw VNAT HDF5 file"
     )
     inspect_parser.add_argument("path", help="path to VNAT_Dataframe_release_1.h5")
+    inspect_parser.add_argument(
+        "--expected-sha256",
+        default=RAW_RELEASE_1_SHA256,
+        help="trusted SHA-256 checked before deserialization",
+    )
 
     return parser
 
@@ -30,7 +35,7 @@ def run(argv: Sequence[str]) -> None:
         return
 
     arguments = _build_parser().parse_args(argv)
-    report = inspect_vnat_file(arguments.path)
+    report = inspect_vnat_file(arguments.path, expected_sha256=arguments.expected_sha256)
     print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
 
 

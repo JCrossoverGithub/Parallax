@@ -2,6 +2,7 @@
 
 import json
 import sys
+from hashlib import sha256
 from pathlib import Path
 from warnings import catch_warnings, simplefilter
 
@@ -40,7 +41,16 @@ def test_main_inspects_vnat_dataset(tmp_path: Path, capsys: CaptureFixture[str])
         simplefilter("ignore", pd.errors.PerformanceWarning)
         dataframe.to_hdf(path, key="data")
 
-    main(["dataset", "inspect", str(path)])
+    expected_sha256 = sha256(path.read_bytes()).hexdigest()
+    main(
+        [
+            "dataset",
+            "inspect",
+            str(path),
+            "--expected-sha256",
+            expected_sha256,
+        ]
+    )
 
     output = json.loads(capsys.readouterr().out)
     assert output["source"] == str(path)

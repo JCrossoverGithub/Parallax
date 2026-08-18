@@ -144,11 +144,18 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def inspect_vnat_file(path: str | Path) -> VnatInspectionReport:
+def inspect_vnat_file(path: str | Path, *, expected_sha256: str) -> VnatInspectionReport:
     """Load, validate, and summarize a raw VNAT HDF5 file."""
     source = Path(path)
     if not source.is_file():
         raise VnatDatasetError(f"VNAT dataset file does not exist: {source}")
+
+    actual_sha256 = _sha256_file(source)
+    if actual_sha256 != expected_sha256.casefold():
+        raise VnatDatasetError(
+            f"SHA-256 mismatch for {source}: expected {expected_sha256.casefold()}, "
+            f"got {actual_sha256}"
+        )
 
     try:
         loaded = pd.read_hdf(source, key="data")
@@ -160,6 +167,6 @@ def inspect_vnat_file(path: str | Path) -> VnatInspectionReport:
     return VnatInspectionReport(
         source=str(source),
         file_size_bytes=source.stat().st_size,
-        sha256=_sha256_file(source),
+        sha256=actual_sha256,
         summary=inspect_raw_dataframe(loaded),
     )
