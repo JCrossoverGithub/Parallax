@@ -1,5 +1,6 @@
 """Versioned feature contracts and numerical transforms for Parallax."""
 
+from parallax.features.flow_statistics import calculate_interarrival_feature_vector
 from parallax.features.schema import (
     FEATURE_COLUMNS,
     FEATURE_SCHEMA_VERSION,
@@ -35,6 +36,7 @@ __all__ = [
     "FeatureContractError",
     "WaveletNormalization",
     "calculate_directional_wavelet_features",
+    "calculate_interarrival_feature_vector",
     "calculate_wavelet_feature_vector",
     "normalize_feature_vector",
     "stationary_haar_bands",
