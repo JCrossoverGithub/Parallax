@@ -2,9 +2,9 @@
 
 ## Status
 
-VNAT release 1 was independently downloaded, checksummed, structurally inspected, and exercised
-through the Parallax CLI on 18 August 2026. The PCAP archive has not yet been downloaded or
-validated.
+VNAT release 1 was independently downloaded, checksummed, structurally inspected,
+deterministically windowed, and exported by Parallax on 18 August 2026. The PCAP archive has not
+yet been downloaded or validated.
 
 ## Source and version
 
@@ -99,8 +99,69 @@ observations into 0.01-second bins. Each retained window becomes 129 statistical
 wavelet-derived features. The first observed packet determines the otherwise arbitrary forward
 direction for a connection.
 
-Parallax records these values in code as part of the release contract. Feature reproduction will
-be tested against independently implemented fixtures before it is trusted on the full dataset.
+Parallax records these values in code as part of the release contract. The wording creates a
+threshold ambiguity: discarding windows with fewer than 20 packets implies retaining exactly 20,
+while the released feature counts are much closer to results obtained by retaining more than 20.
+
+## Parallax window artifact
+
+Parallax aligns windows to the earliest packet timestamp in each source capture while keeping
+connections separate. Packet timestamps, sizes, and directions are stably sorted together before
+window assignment. This reproduces the observed release substantially more closely than aligning
+each connection independently or merging packets across connections.
+
+Two named threshold policies preserve the ambiguity rather than silently choosing one:
+
+- `release-compatible` retains a window when `packet_count > 20` and is the default.
+- `paper-literal` retains a window when `packet_count >= 20`.
+
+Full-release extraction produced the following comparison:
+
+| Category | Released features | Release-compatible | Paper-literal |
+| --- | ---: | ---: | ---: |
+| `C2` | 1,675 | 1,675 | 1,688 |
+| `CHAT` | 10,498 | 10,499 | 10,541 |
+| `FILE_TRANSFER` | 851 | 851 | 852 |
+| `STREAMING` | 1,826 | 1,827 | 1,925 |
+| `VOIP` | 243 | 243 | 243 |
+| **Total** | **15,093** | **15,095** | **15,249** |
+
+The strict policy matches three categories exactly and differs by one row in both Chat and
+Streaming. This is strong evidence that the released preprocessing used a strict threshold, but
+the remaining two-row difference is unresolved. Parallax therefore does not claim exact feature
+artifact reproduction.
+
+Run the default extraction with:
+
+```bash
+uv run --locked parallax dataset extract-windows \
+  data/raw/vnat/VNAT_Dataframe_release_1.h5 \
+  data/processed/vnat-release-1/windows-release-compatible.parquet
+```
+
+The accepted `vnat-window-1` artifact contains 15,095 windows and 37,981,571 packets from 162 of
+the 165 captures. These captures produced no eligible release-compatible windows:
+
+- `nonvpn_rsync_newcapture1.pcap`
+- `nonvpn_scp_newcapture1.pcap`
+- `nonvpn_sftp_newcapture2.pcap`
+
+The Zstandard-compressed Parquet file is 99,585,954 bytes and has SHA-256
+`06f00af45cb635241575d251331e7ce96273212dba087e38b7610876ec9984d8`. A second extraction in the
+same locked environment produced a byte-for-byte checksum match. The artifact contains 236 row
+groups and uses non-nullable fields:
+
+| Field group | Columns |
+| --- | --- |
+| Identity | `window_id`, `capture_id`, `flow_id`, `window_index` |
+| Bounds | `start_offset_seconds`, `end_offset_seconds` |
+| Labels | `vpn_status`, `application`, `category` |
+| Packet data | `packet_count`, `timestamps`, `sizes`, `directions` |
+
+Raw connection addresses and ports are intentionally omitted from the processed artifact. A
+companion manifest records schema version, trusted source checksum, extraction parameters, output
+checksum, omitted captures, and label distributions. The exporter refuses existing destinations
+and builds both files under a temporary directory before moving them to their final paths.
 
 ## Leakage control and evaluation
 
@@ -140,7 +201,8 @@ valid.
 ## Remaining data work
 
 - Download and verify selected PCAP captures for replay acceptance tests.
-- Implement deterministic 40.96-second window extraction from the raw dataframe.
 - Reproduce the 129-feature schema from raw packet metadata.
+- Investigate the two-window difference between release-compatible extraction and the released
+  feature dataframe.
 - Create versioned, capture-grouped split manifests with class-coverage checks.
 - Preserve a separate randomized-window manifest only for comparison with the publication.

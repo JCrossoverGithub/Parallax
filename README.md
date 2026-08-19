@@ -7,9 +7,10 @@ timing, size, and direction without decrypting or persisting packet payloads.
 ## Project status
 
 Parallax is in active development. The repository now includes a typed VNAT release contract,
-fail-closed source checksum verification, structural inspection for the raw HDF5 dataset, strict
-quality gates, and the engineering design foundation. No trained model or live monitoring
-capability is claimed yet.
+fail-closed source checksum verification, structural inspection for the raw HDF5 dataset,
+deterministic capture-aligned window extraction, versioned Parquet export, strict quality gates,
+and the engineering design foundation. No trained model or live monitoring capability is claimed
+yet.
 
 The first operational target is a deterministic replay pipeline:
 
@@ -59,6 +60,20 @@ uv run --locked parallax dataset inspect \
 The command emits a JSON report containing source provenance, capture and connection counts,
 packet-count statistics, and label distributions. The trusted release checksum is checked before
 the HDF5 object data is deserialized.
+
+Extract release-compatible observation windows into a versioned Parquet artifact:
+
+```bash
+uv run --locked parallax dataset extract-windows \
+  data/raw/vnat/VNAT_Dataframe_release_1.h5 \
+  data/processed/vnat-release-1/windows-release-compatible.parquet
+```
+
+The default policy retains windows containing more than 20 packets because that interpretation
+most closely reproduces the released feature dataframe. Use `--threshold-policy paper-literal`
+to retain windows containing exactly 20 packets as implied by the paper's wording. The command
+refuses to overwrite an existing artifact and writes a companion JSON manifest containing the
+source checksum, extraction configuration, output checksum, and audited counts.
 
 Run the complete local quality gate:
 
