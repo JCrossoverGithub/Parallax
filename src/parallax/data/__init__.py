@@ -26,6 +26,14 @@ from parallax.data.vnat import (
     VpnStatus,
     parse_capture_filename,
 )
+from parallax.data.windowing import (
+    ConnectionKey,
+    ObservationWindow,
+    VnatWindowError,
+    WindowExtractionConfig,
+    WindowThresholdPolicy,
+    extract_capture_windows,
+)
 
 __all__ = [
     "APPLICATION_TO_CATEGORY",
@@ -41,12 +49,18 @@ __all__ = [
     "WINDOW_SECONDS",
     "Application",
     "CaptureMetadata",
+    "ConnectionKey",
+    "ObservationWindow",
     "TrafficCategory",
     "VnatDatasetError",
     "VnatDatasetSummary",
     "VnatFilenameError",
     "VnatInspectionReport",
+    "VnatWindowError",
     "VpnStatus",
+    "WindowExtractionConfig",
+    "WindowThresholdPolicy",
+    "extract_capture_windows",
     "inspect_raw_dataframe",
     "inspect_vnat_file",
     "parse_capture_filename",
