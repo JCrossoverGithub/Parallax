@@ -1,5 +1,10 @@
 """Versioned feature contracts and numerical transforms for Parallax."""
 
+from parallax.features.calculator import (
+    FeatureCalculationConfig,
+    build_directional_size_signals,
+    calculate_feature_vector,
+)
 from parallax.features.flow_statistics import (
     ACTIVITY_TIMEOUT_SECONDS,
     AGGREGATE_LOG_EPSILON,
@@ -43,11 +48,14 @@ __all__ = [
     "WINDOW_SAMPLE_COUNT",
     "ByteTotalPolicy",
     "DirectionalWaveletFeatures",
+    "FeatureCalculationConfig",
     "FeatureContractError",
     "WaveletNormalization",
+    "build_directional_size_signals",
     "calculate_active_idle_feature_vector",
     "calculate_aggregate_feature_vector",
     "calculate_directional_wavelet_features",
+    "calculate_feature_vector",
     "calculate_interarrival_feature_vector",
     "calculate_wavelet_feature_vector",
     "normalize_feature_vector",
