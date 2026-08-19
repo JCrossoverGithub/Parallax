@@ -25,9 +25,22 @@ Do not override `--expected-sha256` with a value obtained from the same untruste
 trusted digest must come from the versioned manifest or another independently authenticated
 source.
 
-The current Pandas loader reads the complete fixed-format dataframe and used approximately 5.5
-GiB of resident memory during validation. Later ingestion work will convert verified source data
-into bounded, streamable intermediate artifacts.
+Create the default release-compatible window artifact with:
+
+```bash
+uv run --locked parallax dataset extract-windows \
+  data/raw/vnat/VNAT_Dataframe_release_1.h5 \
+  data/processed/vnat-release-1/windows-release-compatible.parquet
+```
+
+The exporter writes schema version `vnat-window-1` with Zstandard compression and creates a
+companion `.manifest.json` file. Both outputs remain excluded from Git. Final-looking paths are
+created only after extraction succeeds, and existing outputs are never overwritten.
+
+The current Pandas loader still reads the complete fixed-format dataframe. Validation and export
+used approximately 5.5 GiB of resident memory on the initial development machine. The accepted
+release export completed in 30.58 seconds and produced a 99,585,954-byte Parquet file. Later
+ingestion work may introduce a bounded conversion path for memory-constrained environments.
 
 Small test fixtures may be added under `tests/fixtures/` only when their origin, license, purpose,
 and expected result are documented.
