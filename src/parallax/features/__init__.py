@@ -1,6 +1,10 @@
 """Versioned feature contracts and numerical transforms for Parallax."""
 
-from parallax.features.flow_statistics import calculate_interarrival_feature_vector
+from parallax.features.flow_statistics import (
+    ACTIVITY_TIMEOUT_SECONDS,
+    calculate_active_idle_feature_vector,
+    calculate_interarrival_feature_vector,
+)
 from parallax.features.schema import (
     FEATURE_COLUMNS,
     FEATURE_SCHEMA_VERSION,
@@ -23,6 +27,7 @@ from parallax.features.wavelets import (
 )
 
 __all__ = [
+    "ACTIVITY_TIMEOUT_SECONDS",
     "FEATURE_COLUMNS",
     "FEATURE_SCHEMA_VERSION",
     "FLOW_STATISTIC_COLUMNS",
@@ -35,6 +40,7 @@ __all__ = [
     "DirectionalWaveletFeatures",
     "FeatureContractError",
     "WaveletNormalization",
+    "calculate_active_idle_feature_vector",
     "calculate_directional_wavelet_features",
     "calculate_interarrival_feature_vector",
     "calculate_wavelet_feature_vector",
