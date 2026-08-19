@@ -1,11 +1,13 @@
 """Dataset contracts and ingestion helpers for Parallax."""
 
 from parallax.data.inspection import (
+    VerifiedVnatDataframe,
     VnatDatasetError,
     VnatDatasetSummary,
     VnatInspectionReport,
     inspect_raw_dataframe,
     inspect_vnat_file,
+    load_verified_vnat_dataframe,
 )
 from parallax.data.vnat import (
     APPLICATION_TO_CATEGORY,
@@ -25,6 +27,14 @@ from parallax.data.vnat import (
     VnatFilenameError,
     VpnStatus,
     parse_capture_filename,
+)
+from parallax.data.window_export import (
+    WINDOW_PARQUET_SCHEMA,
+    WINDOW_SCHEMA_VERSION,
+    WindowExportError,
+    WindowExportReport,
+    WindowExportSummary,
+    export_vnat_windows,
 )
 from parallax.data.windowing import (
     ConnectionKey,
@@ -46,22 +56,30 @@ __all__ = [
     "RAW_RELEASE_1_SHA256",
     "RAW_RELEASE_1_SIZE_BYTES",
     "TIME_BIN_SECONDS",
+    "WINDOW_PARQUET_SCHEMA",
+    "WINDOW_SCHEMA_VERSION",
     "WINDOW_SECONDS",
     "Application",
     "CaptureMetadata",
     "ConnectionKey",
     "ObservationWindow",
     "TrafficCategory",
+    "VerifiedVnatDataframe",
     "VnatDatasetError",
     "VnatDatasetSummary",
     "VnatFilenameError",
     "VnatInspectionReport",
     "VnatWindowError",
     "VpnStatus",
+    "WindowExportError",
+    "WindowExportReport",
+    "WindowExportSummary",
     "WindowExtractionConfig",
     "WindowThresholdPolicy",
+    "export_vnat_windows",
     "extract_capture_windows",
     "inspect_raw_dataframe",
     "inspect_vnat_file",
+    "load_verified_vnat_dataframe",
     "parse_capture_filename",
 ]

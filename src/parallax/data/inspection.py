@@ -21,6 +21,16 @@ class VnatDatasetError(ValueError):
     """Raised when a VNAT dataframe violates the raw-data contract."""
 
 
+@dataclass(frozen=True, slots=True, eq=False)
+class VerifiedVnatDataframe:
+    """A raw dataframe loaded only after its source digest was verified."""
+
+    source: Path
+    file_size_bytes: int
+    sha256: str
+    dataframe: pd.DataFrame
+
+
 @dataclass(frozen=True, slots=True)
 class VnatDatasetSummary:
     """Content summary produced after validating a raw VNAT dataframe."""
@@ -144,8 +154,10 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def inspect_vnat_file(path: str | Path, *, expected_sha256: str) -> VnatInspectionReport:
-    """Load, validate, and summarize a raw VNAT HDF5 file."""
+def load_verified_vnat_dataframe(
+    path: str | Path, *, expected_sha256: str
+) -> VerifiedVnatDataframe:
+    """Verify a raw VNAT artifact before deserializing its dataframe."""
     source = Path(path)
     if not source.is_file():
         raise VnatDatasetError(f"VNAT dataset file does not exist: {source}")
@@ -164,9 +176,21 @@ def inspect_vnat_file(path: str | Path, *, expected_sha256: str) -> VnatInspecti
     if not isinstance(loaded, pd.DataFrame):
         raise VnatDatasetError(f"expected a dataframe in {source}")
 
-    return VnatInspectionReport(
-        source=str(source),
+    return VerifiedVnatDataframe(
+        source=source,
         file_size_bytes=source.stat().st_size,
         sha256=actual_sha256,
-        summary=inspect_raw_dataframe(loaded),
+        dataframe=loaded,
+    )
+
+
+def inspect_vnat_file(path: str | Path, *, expected_sha256: str) -> VnatInspectionReport:
+    """Load, validate, and summarize a raw VNAT HDF5 file."""
+    verified = load_verified_vnat_dataframe(path, expected_sha256=expected_sha256)
+
+    return VnatInspectionReport(
+        source=str(verified.source),
+        file_size_bytes=verified.file_size_bytes,
+        sha256=verified.sha256,
+        summary=inspect_raw_dataframe(verified.dataframe),
     )
