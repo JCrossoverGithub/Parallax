@@ -2,7 +2,10 @@
 
 from parallax.features.flow_statistics import (
     ACTIVITY_TIMEOUT_SECONDS,
+    AGGREGATE_LOG_EPSILON,
+    ByteTotalPolicy,
     calculate_active_idle_feature_vector,
+    calculate_aggregate_feature_vector,
     calculate_interarrival_feature_vector,
 )
 from parallax.features.schema import (
@@ -28,6 +31,7 @@ from parallax.features.wavelets import (
 
 __all__ = [
     "ACTIVITY_TIMEOUT_SECONDS",
+    "AGGREGATE_LOG_EPSILON",
     "FEATURE_COLUMNS",
     "FEATURE_SCHEMA_VERSION",
     "FLOW_STATISTIC_COLUMNS",
@@ -37,10 +41,12 @@ __all__ = [
     "WAVELET_LOG_EPSILON",
     "WAVELET_NAME",
     "WINDOW_SAMPLE_COUNT",
+    "ByteTotalPolicy",
     "DirectionalWaveletFeatures",
     "FeatureContractError",
     "WaveletNormalization",
     "calculate_active_idle_feature_vector",
+    "calculate_aggregate_feature_vector",
     "calculate_directional_wavelet_features",
     "calculate_interarrival_feature_vector",
     "calculate_wavelet_feature_vector",

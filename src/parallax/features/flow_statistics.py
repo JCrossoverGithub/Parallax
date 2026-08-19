@@ -1,5 +1,7 @@
 """Release-compatible aggregate flow-statistic calculations."""
 
+from enum import StrEnum
+from math import isfinite
 from typing import Final
 
 import numpy as np
@@ -9,6 +11,14 @@ from parallax.features.schema import FeatureContractError
 
 Float32Array = npt.NDArray[np.float32]
 ACTIVITY_TIMEOUT_SECONDS: Final = 5.0
+AGGREGATE_LOG_EPSILON: Final = 1e-4
+
+
+class ByteTotalPolicy(StrEnum):
+    """Treatment of the duplicated byte-total fields in the released artifact."""
+
+    RELEASE_COMPATIBLE = "release-compatible"
+    CORRECTED = "corrected"
 
 
 def calculate_interarrival_feature_vector(
@@ -57,6 +67,61 @@ def calculate_active_idle_feature_vector(
     return values
 
 
+def calculate_aggregate_feature_vector(
+    sizes: npt.ArrayLike,
+    directions: npt.ArrayLike,
+    *,
+    window_seconds: float,
+    byte_total_policy: ByteTotalPolicy = ByteTotalPolicy.RELEASE_COMPATIBLE,
+) -> Float32Array:
+    """Return the five log-scaled aggregate features in release schema order."""
+    if not isfinite(window_seconds) or window_seconds <= 0.0:
+        raise FeatureContractError("window_seconds must be finite and greater than zero")
+    if not isinstance(byte_total_policy, ByteTotalPolicy):
+        raise TypeError("byte_total_policy must be a ByteTotalPolicy")
+
+    normalized_sizes, normalized_directions = _normalize_packet_sizes(
+        sizes,
+        directions,
+    )
+    total_bytes = int(np.sum(normalized_sizes))
+    if total_bytes <= 0:
+        raise FeatureContractError("aggregate packet bytes must be greater than zero")
+
+    outgoing = normalized_directions == 1
+    incoming = normalized_directions == 0
+    outgoing_count = int(np.count_nonzero(outgoing))
+    incoming_count = int(np.count_nonzero(incoming))
+    logged_outgoing_count = _logged_total(outgoing_count)
+    logged_incoming_count = _logged_total(incoming_count)
+
+    if byte_total_policy is ByteTotalPolicy.RELEASE_COMPATIBLE:
+        logged_outgoing_bytes = logged_outgoing_count
+        logged_incoming_bytes = logged_incoming_count
+    else:
+        logged_outgoing_bytes = _logged_total(int(np.sum(normalized_sizes[outgoing])))
+        logged_incoming_bytes = _logged_total(int(np.sum(normalized_sizes[incoming])))
+
+    values = np.asarray(
+        (
+            np.log(total_bytes / window_seconds),
+            logged_outgoing_count,
+            logged_incoming_count,
+            logged_outgoing_bytes,
+            logged_incoming_bytes,
+        ),
+        dtype=np.float32,
+    )
+    values.setflags(write=False)
+    return values
+
+
+def _logged_total(value: int) -> float:
+    if value == 0:
+        return 0.0
+    return float(np.log(value + AGGREGATE_LOG_EPSILON))
+
+
 def _interarrival_statistics(timestamps: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return _summary_statistics(np.diff(timestamps))
 
@@ -81,12 +146,40 @@ def _normalize_packet_timing(
     directions: npt.ArrayLike,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.int8]]:
     timestamp_array = _normalize_timestamps(timestamps)
+    direction_array = _normalize_directions(directions, timestamp_array.size)
+    return timestamp_array, direction_array
+
+
+def _normalize_packet_sizes(
+    sizes: npt.ArrayLike,
+    directions: npt.ArrayLike,
+) -> tuple[npt.NDArray[np.int64], npt.NDArray[np.int8]]:
+    size_array = np.asarray(sizes)
+    if size_array.ndim != 1:
+        raise FeatureContractError("packet metadata arrays must be one-dimensional")
+    if size_array.size == 0:
+        raise FeatureContractError("packet metadata arrays cannot be empty")
+    if not np.issubdtype(size_array.dtype, np.integer):
+        raise FeatureContractError("packet sizes must be integers")
+
+    normalized_sizes = size_array.astype(np.int64, copy=False)
+    if np.any(normalized_sizes < 0):
+        raise FeatureContractError("packet sizes cannot be negative")
+
+    direction_array = _normalize_directions(directions, size_array.size)
+    return normalized_sizes, direction_array
+
+
+def _normalize_directions(
+    directions: npt.ArrayLike,
+    expected_size: int,
+) -> npt.NDArray[np.int8]:
     direction_array = np.asarray(directions)
 
     if direction_array.ndim != 1:
-        raise FeatureContractError("packet timing arrays must be one-dimensional")
-    if timestamp_array.size != direction_array.size:
-        raise FeatureContractError("packet timing array lengths do not match")
+        raise FeatureContractError("packet direction array must be one-dimensional")
+    if expected_size != direction_array.size:
+        raise FeatureContractError("packet metadata array lengths do not match")
     if not np.issubdtype(direction_array.dtype, np.integer):
         raise FeatureContractError("packet directions must be integers")
 
@@ -94,7 +187,7 @@ def _normalize_packet_timing(
     if not np.isin(integer_directions, (0, 1)).all():
         raise FeatureContractError("packet directions must be zero or one")
 
-    return timestamp_array, integer_directions.astype(np.int8, copy=False)
+    return integer_directions.astype(np.int8, copy=False)
 
 
 def _normalize_timestamps(timestamps: npt.ArrayLike) -> npt.NDArray[np.float64]:

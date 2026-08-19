@@ -4,8 +4,11 @@ import pytest
 
 from parallax.features import (
     ACTIVITY_TIMEOUT_SECONDS,
+    AGGREGATE_LOG_EPSILON,
+    ByteTotalPolicy,
     FeatureContractError,
     calculate_active_idle_feature_vector,
+    calculate_aggregate_feature_vector,
     calculate_interarrival_feature_vector,
 )
 
@@ -137,3 +140,97 @@ def test_active_idle_rejects_invalid_timestamps(
 ) -> None:
     with pytest.raises(FeatureContractError, match=message):
         calculate_active_idle_feature_vector(timestamps)
+
+
+def test_calculates_release_compatible_aggregate_features() -> None:
+    values = calculate_aggregate_feature_vector(
+        sizes=[100, 200, 300],
+        directions=[1, 0, 1],
+        window_seconds=10.0,
+    )
+
+    outgoing_count = np.log(2 + AGGREGATE_LOG_EPSILON)
+    incoming_count = np.log(1 + AGGREGATE_LOG_EPSILON)
+    assert np.allclose(
+        values,
+        np.asarray(
+            [
+                np.log(60.0),
+                outgoing_count,
+                incoming_count,
+                outgoing_count,
+                incoming_count,
+            ],
+            dtype=np.float32,
+        ),
+    )
+    assert values.dtype == np.float32
+    assert values.flags.writeable is False
+
+
+def test_corrected_aggregate_policy_uses_directional_byte_totals() -> None:
+    values = calculate_aggregate_feature_vector(
+        sizes=[100, 200, 300],
+        directions=[1, 0, 1],
+        window_seconds=10.0,
+        byte_total_policy=ByteTotalPolicy.CORRECTED,
+    )
+
+    assert values[3] == pytest.approx(np.log(400 + AGGREGATE_LOG_EPSILON))
+    assert values[4] == pytest.approx(np.log(200 + AGGREGATE_LOG_EPSILON))
+
+
+def test_empty_direction_uses_zero_log_sentinel() -> None:
+    values = calculate_aggregate_feature_vector(
+        sizes=[100, 200],
+        directions=[1, 1],
+        window_seconds=40.96,
+        byte_total_policy=ByteTotalPolicy.CORRECTED,
+    )
+
+    assert values[2] == 0.0
+    assert values[4] == 0.0
+
+
+@pytest.mark.parametrize("window_seconds", [0.0, -1.0, float("nan"), float("inf")])
+def test_rejects_invalid_aggregate_window_seconds(window_seconds: float) -> None:
+    with pytest.raises(FeatureContractError, match="window_seconds"):
+        calculate_aggregate_feature_vector(
+            sizes=[100],
+            directions=[1],
+            window_seconds=window_seconds,
+        )
+
+
+def test_rejects_invalid_byte_total_policy() -> None:
+    with pytest.raises(TypeError, match="must be a ByteTotalPolicy"):
+        calculate_aggregate_feature_vector(
+            sizes=[100],
+            directions=[1],
+            window_seconds=40.96,
+            byte_total_policy="corrected",  # type: ignore[arg-type]
+        )
+
+
+@pytest.mark.parametrize(
+    ("sizes", "directions", "message"),
+    [
+        ([[100]], [[1]], "one-dimensional"),
+        ([], [], "cannot be empty"),
+        ([100, 200], [1], "lengths do not match"),
+        ([100.0], [1], "sizes must be integers"),
+        ([-1], [1], "cannot be negative"),
+        ([0], [1], "bytes must be greater than zero"),
+    ],
+)
+def test_rejects_invalid_aggregate_packet_metadata(
+    sizes: npt.ArrayLike,
+    directions: npt.ArrayLike,
+    message: str,
+) -> None:
+    with pytest.raises(FeatureContractError, match=message):
+        calculate_aggregate_feature_vector(
+            sizes=sizes,
+            directions=directions,
+            window_seconds=40.96,
+        )
