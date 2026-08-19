@@ -2,8 +2,12 @@ import numpy as np
 import pytest
 
 from parallax.features import (
+    WAVELET_LOG_EPSILON,
+    DirectionalWaveletFeatures,
     FeatureContractError,
     WaveletNormalization,
+    calculate_directional_wavelet_features,
+    calculate_wavelet_feature_vector,
     stationary_haar_bands,
 )
 
@@ -117,3 +121,105 @@ def test_rejects_invalid_normalization() -> None:
             np.zeros(4096),
             normalization="pywt-default",  # type: ignore[arg-type]
         )
+
+
+def test_directional_features_for_empty_signal_match_release_sentinels() -> None:
+    features = calculate_directional_wavelet_features(np.zeros(4096))
+
+    assert np.array_equal(features.relative_energy, np.zeros(13, dtype=np.float32))
+    assert np.array_equal(features.shannon_entropy, np.zeros(13, dtype=np.float32))
+    expected_log = np.float32(np.log(WAVELET_LOG_EPSILON))
+    assert np.array_equal(features.log_mean_absolute, np.full(13, expected_log))
+    assert np.array_equal(features.log_standard_deviation, np.full(13, expected_log))
+    assert all(
+        values.flags.writeable is False
+        for values in (
+            features.relative_energy,
+            features.shannon_entropy,
+            features.log_mean_absolute,
+            features.log_standard_deviation,
+        )
+    )
+
+
+def test_directional_features_follow_validated_formulas(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bands = tuple(np.full(4096, band_index + 1.0, dtype=np.float64) for band_index in range(13))
+    monkeypatch.setattr(
+        "parallax.features.wavelets.stationary_haar_bands",
+        lambda signal, *, normalization: bands,
+    )
+
+    features = calculate_directional_wavelet_features(np.zeros(4096))
+    band_values = np.arange(1.0, 14.0)
+    expected_energy = np.square(band_values)
+
+    assert np.allclose(features.relative_energy, expected_energy / expected_energy.sum())
+    assert np.array_equal(features.shannon_entropy, np.full(13, 12.0, dtype=np.float32))
+    assert np.allclose(features.log_mean_absolute, np.log(band_values + 1e-4))
+    assert np.array_equal(
+        features.log_standard_deviation,
+        np.full(13, np.float32(np.log(1e-4))),
+    )
+
+
+def test_combined_vector_uses_official_feature_family_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    incoming = DirectionalWaveletFeatures(
+        relative_energy=np.full(13, 1, dtype=np.float32),
+        shannon_entropy=np.full(13, 3, dtype=np.float32),
+        log_mean_absolute=np.full(13, 5, dtype=np.float32),
+        log_standard_deviation=np.full(13, 7, dtype=np.float32),
+    )
+    outgoing = DirectionalWaveletFeatures(
+        relative_energy=np.full(13, 2, dtype=np.float32),
+        shannon_entropy=np.full(13, 4, dtype=np.float32),
+        log_mean_absolute=np.full(13, 6, dtype=np.float32),
+        log_standard_deviation=np.full(13, 8, dtype=np.float32),
+    )
+    results = iter((incoming, outgoing))
+    monkeypatch.setattr(
+        "parallax.features.wavelets.calculate_directional_wavelet_features",
+        lambda signal: next(results),
+    )
+
+    vector = calculate_wavelet_feature_vector(np.zeros(4096), np.zeros(4096))
+
+    assert vector.shape == (104,)
+    assert vector.dtype == np.float32
+    assert vector.flags.writeable is False
+    assert np.array_equal(vector, np.repeat(np.arange(1, 9, dtype=np.float32), 13))
+
+
+@pytest.mark.parametrize(
+    ("values", "message"),
+    [
+        ((np.zeros(12, dtype=np.float32),) * 4, "shape"),
+        (
+            (
+                np.full(13, np.nan, dtype=np.float32),
+                np.zeros(13, dtype=np.float32),
+                np.zeros(13, dtype=np.float32),
+                np.zeros(13, dtype=np.float32),
+            ),
+            "values",
+        ),
+        (
+            (
+                np.zeros(13, dtype=np.float64),
+                np.zeros(13, dtype=np.float32),
+                np.zeros(13, dtype=np.float32),
+                np.zeros(13, dtype=np.float32),
+            ),
+            "values",
+        ),
+    ],
+)
+def test_directional_feature_contract_rejects_invalid_arrays(
+    values: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+    message: str,
+) -> None:
+    with pytest.raises(FeatureContractError, match=message):
+        DirectionalWaveletFeatures(*values)
