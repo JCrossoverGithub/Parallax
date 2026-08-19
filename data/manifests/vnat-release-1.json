@@ -1,0 +1,29 @@
+{
+  "dataset": "VPN/Non-VPN Network Application Traffic Dataset",
+  "dataset_id": "vnat",
+  "publisher": "MIT Lincoln Laboratory",
+  "release": 1,
+  "source_page": "https://www.ll.mit.edu/r-d/datasets/vpnnonvpn-network-application-traffic-dataset-vnat",
+  "publication": "https://doi.org/10.1109/TAI.2023.3244168",
+  "validated_on": "2026-08-18",
+  "artifacts": {
+    "feature_dataframe": {
+      "filename": "VNAT_Feature_Dataframe_release_1.h5",
+      "url": "https://archive.ll.mit.edu/datasets/vnat/VNAT_Feature_Dataframe_release_1.h5",
+      "size_bytes": 9005973,
+      "sha256": "9e435b50743bec6eed288e9707878f624861dcdd7700165955e2509fa47d0f30",
+      "hdf_key": "/features",
+      "rows": 15093,
+      "columns": 130
+    },
+    "raw_dataframe": {
+      "filename": "VNAT_Dataframe_release_1.h5",
+      "url": "https://archive.ll.mit.edu/datasets/vnat/VNAT_Dataframe_release_1.h5",
+      "size_bytes": 1045436008,
+      "sha256": "5d0c3d76cd292f19e25b5229719264bc1ddd71920a20bb27a7dec6c7138914de",
+      "hdf_key": "/data",
+      "rows": 33711,
+      "columns": 5
+    }
+  }
+}

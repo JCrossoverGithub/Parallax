@@ -6,9 +6,10 @@ timing, size, and direction without decrypting or persisting packet payloads.
 
 ## Project status
 
-Parallax is in its initial engineering phase. The repository currently establishes the package,
-quality gates, design record, and CI foundation. No trained model or live monitoring capability
-is claimed yet.
+Parallax is in active development. The repository now includes a typed VNAT release contract,
+fail-closed source checksum verification, structural inspection for the raw HDF5 dataset, strict
+quality gates, and the engineering design foundation. No trained model or live monitoring
+capability is claimed yet.
 
 The first operational target is a deterministic replay pipeline:
 
@@ -48,6 +49,17 @@ uv sync --locked --all-groups
 uv run --locked parallax
 ```
 
+Inspect a verified VNAT release 1 raw dataframe:
+
+```bash
+uv run --locked parallax dataset inspect \
+  data/raw/vnat/VNAT_Dataframe_release_1.h5
+```
+
+The command emits a JSON report containing source provenance, capture and connection counts,
+packet-count statistics, and label distributions. The trusted release checksum is checked before
+the HDF5 object data is deserialized.
+
 Run the complete local quality gate:
 
 ```bash
@@ -62,6 +74,7 @@ uv build --no-sources
 
 - [Engineering design](docs/engineering-design.md)
 - [Dataset card](docs/dataset-card.md)
+- [VNAT release manifest](data/manifests/vnat-release-1.json)
 - [Model card](docs/model-card.md)
 - [Architecture decisions](docs/adr/README.md)
 - [Contribution workflow](CONTRIBUTING.md)
