@@ -5,6 +5,14 @@ from parallax.features.calculator import (
     build_directional_size_signals,
     calculate_feature_vector,
 )
+from parallax.features.export import (
+    FEATURE_ARTIFACT_SCHEMA_VERSION,
+    FEATURE_PARQUET_SCHEMA,
+    FeatureExportError,
+    FeatureExportReport,
+    FeatureExportSummary,
+    export_vnat_features,
+)
 from parallax.features.flow_statistics import (
     ACTIVITY_TIMEOUT_SECONDS,
     AGGREGATE_LOG_EPSILON,
@@ -37,7 +45,9 @@ from parallax.features.wavelets import (
 __all__ = [
     "ACTIVITY_TIMEOUT_SECONDS",
     "AGGREGATE_LOG_EPSILON",
+    "FEATURE_ARTIFACT_SCHEMA_VERSION",
     "FEATURE_COLUMNS",
+    "FEATURE_PARQUET_SCHEMA",
     "FEATURE_SCHEMA_VERSION",
     "FLOW_STATISTIC_COLUMNS",
     "STATIONARY_WAVELET_LEVEL",
@@ -50,6 +60,9 @@ __all__ = [
     "DirectionalWaveletFeatures",
     "FeatureCalculationConfig",
     "FeatureContractError",
+    "FeatureExportError",
+    "FeatureExportReport",
+    "FeatureExportSummary",
     "WaveletNormalization",
     "build_directional_size_signals",
     "calculate_active_idle_feature_vector",
@@ -58,6 +71,7 @@ __all__ = [
     "calculate_feature_vector",
     "calculate_interarrival_feature_vector",
     "calculate_wavelet_feature_vector",
+    "export_vnat_features",
     "normalize_feature_vector",
     "stationary_haar_bands",
 ]
