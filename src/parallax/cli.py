@@ -16,9 +16,11 @@ from parallax.data import (
     inspect_vnat_file,
 )
 from parallax.features import (
+    RELEASE_COMPATIBLE_FEATURE_ARTIFACT_SHA256,
     RELEASE_COMPATIBLE_WINDOW_SHA256,
     ByteTotalPolicy,
     FeatureCalculationConfig,
+    export_capture_split_manifest,
     export_vnat_features,
 )
 
@@ -104,6 +106,19 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     feature_parser.set_defaults(handler=_extract_features)
 
+    split_parser = dataset_commands.add_parser(
+        "split-features",
+        help="create an immutable capture-grouped split manifest",
+    )
+    split_parser.add_argument("source", help="path to a vnat-feature-artifact-1 Parquet file")
+    split_parser.add_argument("output", help="destination .json manifest path")
+    split_parser.add_argument(
+        "--expected-sha256",
+        default=RELEASE_COMPATIBLE_FEATURE_ARTIFACT_SHA256,
+        help="trusted feature-artifact SHA-256 checked before processing",
+    )
+    split_parser.set_defaults(handler=_split_features)
+
     return parser
 
 
@@ -138,6 +153,15 @@ def _extract_features(arguments: argparse.Namespace) -> None:
         arguments.output,
         expected_sha256=arguments.expected_sha256,
         config=config,
+    )
+    print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
+
+
+def _split_features(arguments: argparse.Namespace) -> None:
+    report = export_capture_split_manifest(
+        arguments.source,
+        arguments.output,
+        expected_sha256=arguments.expected_sha256,
     )
     print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
 
