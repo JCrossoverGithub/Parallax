@@ -2,8 +2,45 @@
 
 ## Status
 
-No Parallax model has been trained or selected. This file defines the evidence that must accompany
-a future model release and intentionally contains no performance claims.
+Parallax has trained and accepted two deterministic validation baselines: a majority-class
+classifier and class-balanced multinomial logistic regression. Neither is selected or packaged
+for deployment. No probability calibration, OOD calibration, or final test evaluation has been
+performed.
+
+The complete baseline evidence is recorded in
+[Initial VNAT Validation Baselines](baseline-modeling.md).
+
+## Initial validation evidence
+
+| Model | Accuracy | Balanced accuracy | Macro F1 |
+| --- | ---: | ---: | ---: |
+| Majority class | 0.734509 | 0.200000 | 0.169387 |
+| Balanced logistic regression | 0.934223 | 0.733077 | 0.745291 |
+
+The models use 129 release-compatible features. Preprocessing and estimators are fitted on 9,046
+training windows from 95 captures and evaluated on 2,098 validation windows from 25 disjoint
+captures. Calibration and test remain unevaluated.
+
+The logistic model performs strongly on Chat, Streaming, and C2 in this partition but recalls only
+8 of 42 VoIP windows. Thirty-four VoIP windows are classified as File Transfer. The validation
+set contains only one VoIP capture, so this is an observed failure mode rather than a stable
+estimate of VoIP performance.
+
+## Current intended use
+
+The baselines provide a reproducible reference floor for model development and verify the
+manifest-bound training and reporting pipeline. They must not be used as an operational traffic
+classifier or cited as final VNAT test performance.
+
+## Current exclusions
+
+- No final model has been selected.
+- No model bundle has been serialized or approved for runtime loading.
+- Predicted probabilities have not been calibrated.
+- No OOD score or rejection threshold exists.
+- No calibration or test metrics are available.
+- Results do not establish performance on current enterprise or public Internet traffic.
+- The VNAT C2 label represents benign SSH and RDP behavior, not malware ground truth.
 
 ## Required release information
 

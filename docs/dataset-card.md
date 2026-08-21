@@ -6,7 +6,8 @@ VNAT release 1 was independently downloaded, checksummed, structurally inspected
 deterministically windowed, and exported by Parallax on 18 August 2026. Its 129-feature
 representation was independently implemented and exported on 19 August 2026. The PCAP archive
 has not yet been downloaded or validated. The primary capture-grouped model-development split was
-generated and accepted on 21 August 2026.
+generated and accepted on 21 August 2026. Initial majority-class and balanced logistic-regression
+baselines were subsequently evaluated on the capture-held-out validation partition.
 
 ## Source and version
 
@@ -257,6 +258,20 @@ it cannot replace the capture-held-out primary evaluation.
 
 Because only six VoIP captures and twelve Streaming captures are available, partition metrics
 must be interpreted with their capture counts and not only their much larger window counts.
+
+## Baseline validation context
+
+The accepted initial baseline experiment uses 9,046 training windows from 95 captures and 2,098
+validation windows from 25 different captures. The validation partition is strongly imbalanced:
+1,541 windows, or 73.45%, are Chat. Consequently, the majority-class baseline reaches 73.45% raw
+accuracy but only 20% balanced accuracy.
+
+Balanced logistic regression reaches 93.42% validation accuracy, 73.31% balanced accuracy, and
+0.745 macro F1. Its weakest category is VoIP, with 19.05% recall on 42 windows from one validation
+capture; 34 of those windows are classified as File Transfer. These results must therefore be
+read as capture-held-out validation evidence rather than population-level performance estimates.
+Calibration and test have not been evaluated. Full configuration and evidence are documented in
+[Initial VNAT Validation Baselines](baseline-modeling.md).
 
 ## Intended use
 

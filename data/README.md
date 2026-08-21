@@ -72,6 +72,22 @@ bytes and has SHA-256
 from Git with the other processed artifacts. Existing manifests are never overwritten, and a
 feasible solution is not published unless solver optimality is proven.
 
+Generate the accepted baseline validation report with:
+
+```bash
+uv run --locked parallax model validate-baselines \
+  data/processed/vnat-release-1/features-release-compatible.parquet \
+  data/processed/vnat-release-1/capture-splits.json \
+  data/processed/vnat-release-1/baseline-validation.json
+```
+
+The `vnat-baseline-validation-report-1` artifact binds its metrics to the accepted feature and
+split checksums. It records training-only preprocessing and model fitting, validation-only
+metrics, and solver convergence. The accepted report is 4,747 bytes and has SHA-256
+`e4aece1d97cbd55892971bcac7897269d8976024746d3a7881009e4d75ed6c38`. Independent API and CLI
+runs produced identical report bytes. The processed report remains excluded from Git, and
+calibration and test are not evaluated by this command.
+
 The current Pandas loader still reads the complete fixed-format dataframe. Validation and export
 used approximately 5.5 GiB of resident memory on the initial development machine. The accepted
 release export completed in 30.58 seconds and produced a 99,585,954-byte Parquet file. Later

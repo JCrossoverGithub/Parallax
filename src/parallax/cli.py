@@ -16,6 +16,7 @@ from parallax.data import (
     inspect_vnat_file,
 )
 from parallax.features import (
+    RELEASE_COMPATIBLE_CAPTURE_SPLIT_MANIFEST_SHA256,
     RELEASE_COMPATIBLE_FEATURE_ARTIFACT_SHA256,
     RELEASE_COMPATIBLE_WINDOW_SHA256,
     ByteTotalPolicy,
@@ -23,6 +24,7 @@ from parallax.features import (
     export_capture_split_manifest,
     export_vnat_features,
 )
+from parallax.modeling import export_baseline_validation_report
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -119,6 +121,24 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     split_parser.set_defaults(handler=_split_features)
 
+    model_parser = commands.add_parser("model", help="run leakage-resistant model experiments")
+    model_commands = model_parser.add_subparsers(dest="model_command", required=True)
+    baseline_parser = model_commands.add_parser(
+        "validate-baselines",
+        help="fit training-only baselines and publish validation metrics",
+    )
+    baseline_parser.add_argument("features", help="path to a vnat-feature-artifact-1 Parquet file")
+    baseline_parser.add_argument(
+        "split_manifest", help="path to its trusted capture-split manifest"
+    )
+    baseline_parser.add_argument("output", help="destination .json validation report path")
+    baseline_parser.add_argument(
+        "--expected-manifest-sha256",
+        default=RELEASE_COMPATIBLE_CAPTURE_SPLIT_MANIFEST_SHA256,
+        help="trusted split-manifest SHA-256 checked before processing",
+    )
+    baseline_parser.set_defaults(handler=_validate_baselines)
+
     return parser
 
 
@@ -162,6 +182,16 @@ def _split_features(arguments: argparse.Namespace) -> None:
         arguments.source,
         arguments.output,
         expected_sha256=arguments.expected_sha256,
+    )
+    print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
+
+
+def _validate_baselines(arguments: argparse.Namespace) -> None:
+    report = export_baseline_validation_report(
+        arguments.features,
+        arguments.split_manifest,
+        arguments.output,
+        expected_manifest_sha256=arguments.expected_manifest_sha256,
     )
     print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
 
