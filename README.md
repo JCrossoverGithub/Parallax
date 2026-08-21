@@ -10,8 +10,9 @@ Parallax is in active development. The repository now includes a typed VNAT rele
 fail-closed source checksum verification, structural inspection for the raw HDF5 dataset,
 deterministic capture-aligned window extraction, reproduction of the published 129-feature
 representation, versioned Parquet exports, deterministic capture-grouped partitioning, strict
-quality gates, and the engineering design foundation. No trained model or live monitoring
-capability is claimed yet.
+quality gates, a manifest-bound modeling loader, and deterministic majority-class and balanced
+logistic-regression validation baselines. No calibrated uncertainty model, deployable model
+bundle, or live monitoring capability is claimed yet.
 
 The first operational target is a deterministic replay pipeline:
 
@@ -104,6 +105,20 @@ calibration, and 15% test windows. It refuses to publish unless the mixed-intege
 optimality and writes a deterministic JSON manifest containing every assignment, the complete
 configuration, solver evidence, source provenance, and partition distributions.
 
+Fit the initial training-only baselines and publish validation-only metrics:
+
+```bash
+uv run --locked parallax model validate-baselines \
+  data/processed/vnat-release-1/features-release-compatible.parquet \
+  data/processed/vnat-release-1/capture-splits.json \
+  data/processed/vnat-release-1/baseline-validation.json
+```
+
+The command verifies both source artifacts, fits preprocessing and estimators using only the
+training partition, and evaluates only validation data. Its deterministic JSON report records
+provenance, configuration, convergence, aggregate metrics, per-category metrics, and confusion
+matrices. Calibration and test remain unevaluated.
+
 Run the complete local quality gate:
 
 ```bash
@@ -119,6 +134,7 @@ uv build --no-sources
 - [Engineering design](docs/engineering-design.md)
 - [Reproducible data pipeline](docs/data-pipeline.md)
 - [Capture-grouped splitting](docs/capture-splitting.md)
+- [Initial validation baselines](docs/baseline-modeling.md)
 - [Dataset card](docs/dataset-card.md)
 - [VNAT release manifest](data/manifests/vnat-release-1.json)
 - [Model card](docs/model-card.md)

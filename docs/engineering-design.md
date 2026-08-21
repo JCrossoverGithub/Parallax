@@ -374,6 +374,12 @@ The project will establish progressively stronger baselines:
 4. Gradient-boosted decision tree, subject to dependency review
 5. Small fully connected neural network
 
+The first two baselines are implemented. On the capture-held-out validation partition, balanced
+logistic regression reaches 93.42% accuracy, 73.31% balanced accuracy, and 0.745 macro F1. These
+are validation reference values only; calibration and test remain unevaluated. Configuration,
+per-category results, confusion matrices, provenance, and limitations are documented in
+[Initial VNAT Validation Baselines](baseline-modeling.md).
+
 The prototypical network will not be accepted as an improvement unless it demonstrates useful uncertainty behavior in addition to classification performance.
 
 ### 11.3 Primary uncertainty model
@@ -718,6 +724,9 @@ Deliverables:
 Exit criteria:
 
 - A clean checkout can reproduce the baseline metrics from a documented command.
+
+This exit criterion is satisfied by the manifest-bound dataset loader and deterministic
+`parallax model validate-baselines` report workflow.
 
 ### Milestone 2: Uncertainty-aware modeling
 
