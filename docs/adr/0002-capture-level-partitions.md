@@ -25,3 +25,11 @@ separately and cannot replace the capture-held-out result.
 - Source-capture identity becomes a required part of the dataset contract.
 - If the supplied feature data lacks reliable capture identity, that limitation must be resolved or
   documented before primary metrics are reported.
+
+## Implementation
+
+The `vnat-capture-split-1` contract implements this decision with deterministic mixed-integer
+optimization and hard leakage and coverage constraints. Its
+`vnat-capture-split-manifest-1` output binds all assignments to the verified feature-artifact
+checksum and is published only when optimality is proven. The accepted VNAT assignment and its
+measured balance are documented in [Capture-Grouped Splitting](../capture-splitting.md).
