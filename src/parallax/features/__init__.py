@@ -8,6 +8,7 @@ from parallax.features.calculator import (
 from parallax.features.export import (
     FEATURE_ARTIFACT_SCHEMA_VERSION,
     FEATURE_PARQUET_SCHEMA,
+    RELEASE_COMPATIBLE_WINDOW_SHA256,
     FeatureExportError,
     FeatureExportReport,
     FeatureExportSummary,
@@ -50,6 +51,7 @@ __all__ = [
     "FEATURE_PARQUET_SCHEMA",
     "FEATURE_SCHEMA_VERSION",
     "FLOW_STATISTIC_COLUMNS",
+    "RELEASE_COMPATIBLE_WINDOW_SHA256",
     "STATIONARY_WAVELET_LEVEL",
     "WAVELET_BAND_COUNT",
     "WAVELET_FEATURE_COLUMNS",

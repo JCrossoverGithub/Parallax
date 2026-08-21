@@ -20,6 +20,9 @@ from parallax.features.calculator import (
 from parallax.features.schema import FEATURE_COLUMNS
 
 FEATURE_ARTIFACT_SCHEMA_VERSION: Final = "vnat-feature-artifact-1"
+RELEASE_COMPATIBLE_WINDOW_SHA256: Final = (
+    "06f00af45cb635241575d251331e7ce96273212dba087e38b7610876ec9984d8"
+)
 FEATURE_PARQUET_SCHEMA: Final = pa.schema(
     cast(
         "list[pa.Field[Any]]",

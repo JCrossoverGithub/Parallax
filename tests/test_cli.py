@@ -7,10 +7,13 @@ from pathlib import Path
 from warnings import catch_warnings, simplefilter
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 from pytest import CaptureFixture, MonkeyPatch
 
 from parallax import __version__
 from parallax.cli import main
+from parallax.data import WINDOW_PARQUET_SCHEMA
 
 
 def test_package_version_matches_initial_release() -> None:
@@ -99,6 +102,57 @@ def test_main_exports_vnat_windows(tmp_path: Path, capsys: CaptureFixture[str]) 
         "minimum_packets": 20,
         "threshold_policy": "paper-literal",
         "window_seconds": 20.48,
+    }
+    assert report["summary"]["windows"] == 1
+    assert output.is_file()
+    assert output.with_suffix(".manifest.json").is_file()
+
+
+def test_main_exports_vnat_features(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
+    source = tmp_path / "windows.parquet"
+    output = tmp_path / "processed" / "features.parquet"
+    table = pa.Table.from_pylist(
+        [
+            {
+                "window_id": "capture:flow:0",
+                "capture_id": "capture.pcap",
+                "flow_id": "flow",
+                "window_index": 0,
+                "start_offset_seconds": 0.0,
+                "end_offset_seconds": 40.96,
+                "vpn_status": "vpn",
+                "application": "voip",
+                "category": "VOIP",
+                "packet_count": 3,
+                "timestamps": [0.0, 0.01, 6.0],
+                "sizes": [100, 200, 300],
+                "directions": [1, 0, 1],
+            }
+        ],
+        schema=WINDOW_PARQUET_SCHEMA,
+    )
+    pq.write_table(table, source)
+    expected_sha256 = sha256(source.read_bytes()).hexdigest()
+
+    main(
+        [
+            "dataset",
+            "extract-features",
+            str(source),
+            str(output),
+            "--expected-sha256",
+            expected_sha256,
+            "--byte-total-policy",
+            "corrected",
+        ]
+    )
+
+    report = json.loads(capsys.readouterr().out)
+    assert report["output"]["path"] == str(output)
+    assert report["configuration"] == {
+        "byte_total_policy": "corrected",
+        "time_bin_seconds": 0.01,
+        "window_seconds": 40.96,
     }
     assert report["summary"]["windows"] == 1
     assert output.is_file()
