@@ -34,6 +34,14 @@ from parallax.features.schema import (
     FeatureContractError,
     normalize_feature_vector,
 )
+from parallax.features.split_manifest import (
+    CAPTURE_SPLIT_MANIFEST_SCHEMA_VERSION,
+    RELEASE_COMPATIBLE_FEATURE_ARTIFACT_SHA256,
+    RELEASE_COMPATIBLE_FEATURE_ARTIFACT_SIZE_BYTES,
+    CaptureSplitManifestError,
+    CaptureSplitManifestReport,
+    export_capture_split_manifest,
+)
 from parallax.features.wavelets import (
     WAVELET_LOG_EPSILON,
     DirectionalWaveletFeatures,
@@ -46,11 +54,14 @@ from parallax.features.wavelets import (
 __all__ = [
     "ACTIVITY_TIMEOUT_SECONDS",
     "AGGREGATE_LOG_EPSILON",
+    "CAPTURE_SPLIT_MANIFEST_SCHEMA_VERSION",
     "FEATURE_ARTIFACT_SCHEMA_VERSION",
     "FEATURE_COLUMNS",
     "FEATURE_PARQUET_SCHEMA",
     "FEATURE_SCHEMA_VERSION",
     "FLOW_STATISTIC_COLUMNS",
+    "RELEASE_COMPATIBLE_FEATURE_ARTIFACT_SHA256",
+    "RELEASE_COMPATIBLE_FEATURE_ARTIFACT_SIZE_BYTES",
     "RELEASE_COMPATIBLE_WINDOW_SHA256",
     "STATIONARY_WAVELET_LEVEL",
     "WAVELET_BAND_COUNT",
@@ -59,6 +70,8 @@ __all__ = [
     "WAVELET_NAME",
     "WINDOW_SAMPLE_COUNT",
     "ByteTotalPolicy",
+    "CaptureSplitManifestError",
+    "CaptureSplitManifestReport",
     "DirectionalWaveletFeatures",
     "FeatureCalculationConfig",
     "FeatureContractError",
@@ -73,6 +86,7 @@ __all__ = [
     "calculate_feature_vector",
     "calculate_interarrival_feature_vector",
     "calculate_wavelet_feature_vector",
+    "export_capture_split_manifest",
     "export_vnat_features",
     "normalize_feature_vector",
     "stationary_haar_bands",
