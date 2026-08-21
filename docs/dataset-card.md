@@ -3,8 +3,9 @@
 ## Status
 
 VNAT release 1 was independently downloaded, checksummed, structurally inspected,
-deterministically windowed, and exported by Parallax on 18 August 2026. The PCAP archive has not
-yet been downloaded or validated.
+deterministically windowed, and exported by Parallax on 18 August 2026. Its 129-feature
+representation was independently implemented and exported on 19 August 2026. The PCAP archive
+has not yet been downloaded or validated.
 
 ## Source and version
 
@@ -163,6 +164,58 @@ companion manifest records schema version, trusted source checksum, extraction p
 checksum, omitted captures, and label distributions. The exporter refuses existing destinations
 and builds both files under a temporary directory before moving them to their final paths.
 
+## Parallax feature reproduction
+
+Parallax independently calculates the complete ordered 129-feature vector from each
+`vnat-window-1` row. The implementation uses the following release-compatible rules:
+
+- Interarrival statistics use seconds and population standard deviation for outgoing, incoming,
+  and combined packet timestamps.
+- Active and idle statistics use a five-second activity timeout. Idle duration excludes that
+  timeout, so an observed six-second gap contributes one second of idle time.
+- Aggregate features use natural logarithms and the release's `1e-4` count offset.
+- Packet sizes are accumulated into 4,096 directional 0.01-second bins.
+- Thirteen energy-normalized stationary Haar wavelet bands provide relative energy, base-2
+  Shannon entropy, log mean absolute coefficient, and log population-standard-deviation values.
+
+The released feature dataframe contains a reproducible defect: each directional byte-total
+column is exactly equal to the corresponding packet-count column. The default
+`release-compatible` policy preserves this behavior for comparison. The separately named
+`corrected` policy calculates actual directional byte totals for future modeling.
+
+An empirical comparison used 500 uniquely fingerprint-aligned windows, with 100 examples from
+each category:
+
+| Comparison | Result |
+| --- | ---: |
+| Complete vectors matching bit for bit | 416 / 500 |
+| Complete vectors within `1e-5` | 432 / 500 |
+| Complete vectors within `1e-4` | 447 / 500 |
+| Complete vectors within `1e-3` | 455 / 500 |
+| Complete vectors within `1e-2` | 495 / 500 |
+
+All 2,500 aggregate values matched exactly. Interarrival values had a maximum absolute error of
+`9.53674316e-7`; active and idle values had a maximum of `0.000770568848`. Most remaining
+differences were in fine-scale wavelet bands, where the maximum error was `0.0275537968`.
+Together with the unresolved two-window count difference, these results support formula-level
+reproduction but not a claim of exact equivalence to the publisher's feature artifact.
+
+Create the accepted feature artifact with:
+
+```bash
+uv run --locked parallax dataset extract-features \
+  data/processed/vnat-release-1/windows-release-compatible.parquet \
+  data/processed/vnat-release-1/features-release-compatible.parquet
+```
+
+The resulting `vnat-feature-artifact-1` Parquet file contains 15,095 rows, 129 finite `float32`
+feature columns, 236 row groups, and identities for 162 captures representing 37,981,571 packets.
+It is 14,702,124 bytes and has SHA-256
+`611dcb63c66e04f461fb7500f96762c1722a06fbdde700dc5aa42ae021e39f16`. A clean replay in the same
+locked environment produced a byte-for-byte match. Row-group processing reduced peak resident
+memory to 908,752 KiB and completed in 3 minutes 33.28 seconds on the initial development
+machine.
+
 ## Leakage control and evaluation
 
 The publication reports randomized 80/20 train/test splits over derived examples. It does not
@@ -201,7 +254,6 @@ valid.
 ## Remaining data work
 
 - Download and verify selected PCAP captures for replay acceptance tests.
-- Reproduce the 129-feature schema from raw packet metadata.
 - Investigate the two-window difference between release-compatible extraction and the released
   feature dataframe.
 - Create versioned, capture-grouped split manifests with class-coverage checks.

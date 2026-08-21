@@ -8,9 +8,9 @@ timing, size, and direction without decrypting or persisting packet payloads.
 
 Parallax is in active development. The repository now includes a typed VNAT release contract,
 fail-closed source checksum verification, structural inspection for the raw HDF5 dataset,
-deterministic capture-aligned window extraction, versioned Parquet export, strict quality gates,
-and the engineering design foundation. No trained model or live monitoring capability is claimed
-yet.
+deterministic capture-aligned window extraction, reproduction of the published 129-feature
+representation, versioned Parquet exports, strict quality gates, and the engineering design
+foundation. No trained model or live monitoring capability is claimed yet.
 
 The first operational target is a deterministic replay pipeline:
 
@@ -71,9 +71,23 @@ uv run --locked parallax dataset extract-windows \
 
 The default policy retains windows containing more than 20 packets because that interpretation
 most closely reproduces the released feature dataframe. Use `--threshold-policy paper-literal`
-to retain windows containing exactly 20 packets as implied by the paper's wording. The command
-refuses to overwrite an existing artifact and writes a companion JSON manifest containing the
-source checksum, extraction configuration, output checksum, and audited counts.
+to also retain windows containing exactly 20 packets as implied by the paper's wording. The
+command refuses to overwrite an existing artifact and writes a companion JSON manifest
+containing the source checksum, extraction configuration, output checksum, and audited counts.
+
+Calculate the versioned 129-feature representation from those windows:
+
+```bash
+uv run --locked parallax dataset extract-features \
+  data/processed/vnat-release-1/windows-release-compatible.parquet \
+  data/processed/vnat-release-1/features-release-compatible.parquet
+```
+
+Feature extraction processes one Parquet row group at a time and writes another immutable
+artifact plus a provenance manifest. The default `release-compatible` policy preserves an
+observed defect in the published feature dataframe: its directional byte-total columns duplicate
+the packet-count columns. Use `--byte-total-policy corrected` for new experiments that should
+calculate real directional byte totals.
 
 Run the complete local quality gate:
 
@@ -88,6 +102,7 @@ uv build --no-sources
 ## Documentation
 
 - [Engineering design](docs/engineering-design.md)
+- [Reproducible data pipeline](docs/data-pipeline.md)
 - [Dataset card](docs/dataset-card.md)
 - [VNAT release manifest](data/manifests/vnat-release-1.json)
 - [Model card](docs/model-card.md)
