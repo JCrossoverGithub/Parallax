@@ -198,3 +198,52 @@ def test_main_exports_capture_split_manifest(
     )
 
     assert json.loads(capsys.readouterr().out) == expected_payload
+
+
+def test_main_exports_baseline_validation_report(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    features = tmp_path / "features.parquet"
+    split_manifest = tmp_path / "capture-splits.json"
+    output = tmp_path / "baseline-validation.json"
+    expected_sha256 = "2" * 64
+    expected_payload = {
+        "schema_version": "vnat-baseline-validation-report-1",
+        "evaluation_policy": {
+            "fit_partition": "train",
+            "evaluation_partition": "validation",
+            "calibration_evaluated": False,
+            "test_evaluated": False,
+        },
+    }
+
+    def fake_export(
+        selected_features: str,
+        selected_manifest: str,
+        selected_output: str,
+        *,
+        expected_manifest_sha256: str,
+    ) -> SimpleNamespace:
+        assert selected_features == str(features)
+        assert selected_manifest == str(split_manifest)
+        assert selected_output == str(output)
+        assert expected_manifest_sha256 == expected_sha256
+        return SimpleNamespace(as_dict=lambda: expected_payload)
+
+    monkeypatch.setattr("parallax.cli.export_baseline_validation_report", fake_export)
+
+    main(
+        [
+            "model",
+            "validate-baselines",
+            str(features),
+            str(split_manifest),
+            str(output),
+            "--expected-manifest-sha256",
+            expected_sha256,
+        ]
+    )
+
+    assert json.loads(capsys.readouterr().out) == expected_payload
