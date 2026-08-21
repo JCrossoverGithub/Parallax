@@ -418,6 +418,14 @@ Four logical partitions are required:
 
 The primary evaluation will group by source capture so windows from one capture cannot cross partitions.
 
+The implemented `vnat-capture-split-1` contract targets 60% training, 15% validation, 10%
+calibration, and 15% test windows. It treats each capture as indivisible and enforces category
+coverage in every partition, application coverage in training and test, both VPN statuses in
+every partition, and every category/VPN combination in training. Soft balance objectives account
+for category windows, category capture counts, overall windows and captures, and VPN-status
+windows. The immutable manifest records the source checksum, exact configuration, solver result,
+all assignments, and distribution summaries.
+
 For comparison with the paper, a separate randomized-window experiment may be reported. It must be labeled clearly and must not replace the capture-held-out result.
 
 ### 12.2 Closed-set metrics

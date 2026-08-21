@@ -4,6 +4,7 @@ import json
 import sys
 from hashlib import sha256
 from pathlib import Path
+from types import SimpleNamespace
 from warnings import catch_warnings, simplefilter
 
 import pandas as pd
@@ -157,3 +158,43 @@ def test_main_exports_vnat_features(tmp_path: Path, capsys: CaptureFixture[str])
     assert report["summary"]["windows"] == 1
     assert output.is_file()
     assert output.with_suffix(".manifest.json").is_file()
+
+
+def test_main_exports_capture_split_manifest(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    source = tmp_path / "features.parquet"
+    output = tmp_path / "capture-splits.json"
+    expected_sha256 = "1" * 64
+    expected_payload = {
+        "schema_version": "vnat-capture-split-manifest-1",
+        "summary": {"captures": 162, "windows": 15_095},
+    }
+
+    def fake_export(
+        selected_source: str,
+        selected_output: str,
+        *,
+        expected_sha256: str,
+    ) -> SimpleNamespace:
+        assert selected_source == str(source)
+        assert selected_output == str(output)
+        assert expected_sha256 == "1" * 64
+        return SimpleNamespace(as_dict=lambda: expected_payload)
+
+    monkeypatch.setattr("parallax.cli.export_capture_split_manifest", fake_export)
+
+    main(
+        [
+            "dataset",
+            "split-features",
+            str(source),
+            str(output),
+            "--expected-sha256",
+            expected_sha256,
+        ]
+    )
+
+    assert json.loads(capsys.readouterr().out) == expected_payload

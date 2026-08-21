@@ -5,7 +5,8 @@
 VNAT release 1 was independently downloaded, checksummed, structurally inspected,
 deterministically windowed, and exported by Parallax on 18 August 2026. Its 129-feature
 representation was independently implemented and exported on 19 August 2026. The PCAP archive
-has not yet been downloaded or validated.
+has not yet been downloaded or validated. The primary capture-grouped model-development split was
+generated and accepted on 21 August 2026.
 
 ## Source and version
 
@@ -216,19 +217,46 @@ locked environment produced a byte-for-byte match. Row-group processing reduced 
 memory to 908,752 KiB and completed in 3 minutes 33.28 seconds on the initial development
 machine.
 
-## Leakage control and evaluation
+## Capture-grouped model-development split
 
 The publication reports randomized 80/20 train/test splits over derived examples. It does not
 report capture-group isolation for that experiment. Multiple windows from one connection or
 capture could therefore appear in both partitions.
 
-Parallax will use the exact source PCAP filename as its primary grouping key. No capture may cross
-training, validation, calibration, and test partitions. A randomized window split may be reported
-only as a clearly labeled paper-comparison result.
+Parallax uses the exact source PCAP filename as its primary grouping key. A deterministic
+mixed-integer optimizer assigns every capture exactly once across training, validation,
+calibration, and test. The versioned hard contract requires:
 
-Because only six VoIP captures and twelve Streaming captures are available, grouped partition
-construction must verify per-category coverage rather than assuming a random group assignment is
-valid.
+- Every category in every partition with at least 20 windows.
+- Every application in both training and test.
+- VPN and non-VPN captures in every partition.
+- Every category/VPN-status combination in training.
+
+Window totals, capture totals, per-category distributions, and VPN-status distributions influence
+the balance objective. The default window-fraction targets are 60% training, 15% validation, 10%
+calibration, and 15% test. A 15-second solver limit and 10% relative MIP gap bound optimization,
+but the manifest exporter refuses to publish a merely feasible result: optimality must be proven.
+
+The accepted assignment is:
+
+| Partition | Captures | Windows | Window fraction |
+| --- | ---: | ---: | ---: |
+| Training | 95 | 9,046 | 59.9271% |
+| Validation | 25 | 2,098 | 13.8986% |
+| Calibration | 16 | 1,499 | 9.9304% |
+| Test | 26 | 2,452 | 16.2438% |
+
+All ten applications occur in training and test, and all five categories occur in every
+partition. Validation and calibration are not required to contain every application because
+Vimeo has only two source captures and Netflix has only three. The manifest is deterministic:
+independent API and CLI runs matched byte for byte. The 38,372-byte artifact has SHA-256
+`a1aeee5f118c1e3bd57aa7232eb009634c098b9025571786614798953ebd8a0f`.
+
+A randomized window split may still be reported as a clearly labeled paper-comparison result, but
+it cannot replace the capture-held-out primary evaluation.
+
+Because only six VoIP captures and twelve Streaming captures are available, partition metrics
+must be interpreted with their capture counts and not only their much larger window counts.
 
 ## Intended use
 
@@ -256,5 +284,4 @@ valid.
 - Download and verify selected PCAP captures for replay acceptance tests.
 - Investigate the two-window difference between release-compatible extraction and the released
   feature dataframe.
-- Create versioned, capture-grouped split manifests with class-coverage checks.
 - Preserve a separate randomized-window manifest only for comparison with the publication.

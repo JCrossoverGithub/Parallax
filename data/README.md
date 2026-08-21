@@ -56,6 +56,22 @@ The default byte-total policy intentionally reproduces the released dataframe, w
 byte-total columns duplicate its packet-count columns. Pass `--byte-total-policy corrected` when
 creating an artifact for a new model rather than comparing against the publication.
 
+Create the primary capture-grouped partition manifest with:
+
+```bash
+uv run --locked parallax dataset split-features \
+  data/processed/vnat-release-1/features-release-compatible.parquet \
+  data/processed/vnat-release-1/capture-splits.json
+```
+
+The splitter verifies the accepted feature artifact before reading it and scans only capture and
+label columns in bounded batches. The `vnat-capture-split-manifest-1` output contains all 162
+capture assignments across training, validation, calibration, and test partitions. It is 38,372
+bytes and has SHA-256
+`a1aeee5f118c1e3bd57aa7232eb009634c098b9025571786614798953ebd8a0f`. The output remains excluded
+from Git with the other processed artifacts. Existing manifests are never overwritten, and a
+feasible solution is not published unless solver optimality is proven.
+
 The current Pandas loader still reads the complete fixed-format dataframe. Validation and export
 used approximately 5.5 GiB of resident memory on the initial development machine. The accepted
 release export completed in 30.58 seconds and produced a 99,585,954-byte Parquet file. Later

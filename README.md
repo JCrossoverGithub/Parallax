@@ -9,8 +9,9 @@ timing, size, and direction without decrypting or persisting packet payloads.
 Parallax is in active development. The repository now includes a typed VNAT release contract,
 fail-closed source checksum verification, structural inspection for the raw HDF5 dataset,
 deterministic capture-aligned window extraction, reproduction of the published 129-feature
-representation, versioned Parquet exports, strict quality gates, and the engineering design
-foundation. No trained model or live monitoring capability is claimed yet.
+representation, versioned Parquet exports, deterministic capture-grouped partitioning, strict
+quality gates, and the engineering design foundation. No trained model or live monitoring
+capability is claimed yet.
 
 The first operational target is a deterministic replay pipeline:
 
@@ -89,6 +90,20 @@ observed defect in the published feature dataframe: its directional byte-total c
 the packet-count columns. Use `--byte-total-policy corrected` for new experiments that should
 calculate real directional byte totals.
 
+Create the primary capture-grouped model-development split:
+
+```bash
+uv run --locked parallax dataset split-features \
+  data/processed/vnat-release-1/features-release-compatible.parquet \
+  data/processed/vnat-release-1/capture-splits.json
+```
+
+The command checks the trusted feature-artifact checksum before reading Parquet, keeps every
+source capture wholly within one partition, and targets 60% training, 15% validation, 10%
+calibration, and 15% test windows. It refuses to publish unless the mixed-integer solver proves
+optimality and writes a deterministic JSON manifest containing every assignment, the complete
+configuration, solver evidence, source provenance, and partition distributions.
+
 Run the complete local quality gate:
 
 ```bash
@@ -103,6 +118,7 @@ uv build --no-sources
 
 - [Engineering design](docs/engineering-design.md)
 - [Reproducible data pipeline](docs/data-pipeline.md)
+- [Capture-grouped splitting](docs/capture-splitting.md)
 - [Dataset card](docs/dataset-card.md)
 - [VNAT release manifest](data/manifests/vnat-release-1.json)
 - [Model card](docs/model-card.md)

@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=3.0.5",
     "pyarrow>=25.0.1",
     "pywavelets==1.8.0",
+    "scipy>=1.18.0",
     "tables>=3.11.1",
 ]
 
@@ -30,6 +31,7 @@ dev = [
     "pytest>=9.1.1",
     "pytest-cov>=7.1.0",
     "ruff>=0.16.3",
+    "scipy-stubs>=1.18.0.1",
 ]
 
 [tool.pytest.ini_options]

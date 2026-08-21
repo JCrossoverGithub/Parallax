@@ -9,6 +9,18 @@ from parallax.data.inspection import (
     inspect_vnat_file,
     load_verified_vnat_dataframe,
 )
+from parallax.data.splitting import (
+    CAPTURE_SPLIT_SCHEMA_VERSION,
+    DATASET_PARTITIONS,
+    CaptureAssignment,
+    CaptureGroup,
+    CaptureSplitConfig,
+    CaptureSplitError,
+    CaptureSplitResult,
+    DatasetPartition,
+    assign_capture_splits,
+    validate_capture_assignments,
+)
 from parallax.data.vnat import (
     APPLICATION_TO_CATEGORY,
     FEATURE_COUNT,
@@ -47,6 +59,8 @@ from parallax.data.windowing import (
 
 __all__ = [
     "APPLICATION_TO_CATEGORY",
+    "CAPTURE_SPLIT_SCHEMA_VERSION",
+    "DATASET_PARTITIONS",
     "FEATURE_COUNT",
     "FEATURE_LABEL_COLUMN",
     "FEATURE_RELEASE_1_SHA256",
@@ -60,8 +74,14 @@ __all__ = [
     "WINDOW_SCHEMA_VERSION",
     "WINDOW_SECONDS",
     "Application",
+    "CaptureAssignment",
+    "CaptureGroup",
     "CaptureMetadata",
+    "CaptureSplitConfig",
+    "CaptureSplitError",
+    "CaptureSplitResult",
     "ConnectionKey",
+    "DatasetPartition",
     "ObservationWindow",
     "TrafficCategory",
     "VerifiedVnatDataframe",
@@ -76,10 +96,12 @@ __all__ = [
     "WindowExportSummary",
     "WindowExtractionConfig",
     "WindowThresholdPolicy",
+    "assign_capture_splits",
     "export_vnat_windows",
     "extract_capture_windows",
     "inspect_raw_dataframe",
     "inspect_vnat_file",
     "load_verified_vnat_dataframe",
     "parse_capture_filename",
+    "validate_capture_assignments",
 ]
