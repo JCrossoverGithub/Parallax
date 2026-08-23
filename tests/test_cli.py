@@ -247,3 +247,180 @@ def test_main_exports_baseline_validation_report(
     )
 
     assert json.loads(capsys.readouterr().out) == expected_payload
+
+
+def test_main_exports_prototype_validation_report(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    features = tmp_path / "features.parquet"
+    split_manifest = tmp_path / "capture-splits.json"
+    model_bundle = tmp_path / "prototype-model.json"
+    output = tmp_path / "prototype-validation.json"
+    expected_sha256 = "3" * 64
+    expected_payload = {
+        "schema_version": "vnat-prototype-validation-report-1",
+        "evaluation_policy": {
+            "fit_partition": "train",
+            "evaluation_partition": "validation",
+            "calibration_evaluated": False,
+            "test_evaluated": False,
+        },
+    }
+
+    def fake_export(
+        selected_features: str,
+        selected_manifest: str,
+        selected_bundle: str,
+        selected_output: str,
+        *,
+        expected_manifest_sha256: str,
+    ) -> SimpleNamespace:
+        assert selected_features == str(features)
+        assert selected_manifest == str(split_manifest)
+        assert selected_bundle == str(model_bundle)
+        assert selected_output == str(output)
+        assert expected_manifest_sha256 == expected_sha256
+        return SimpleNamespace(as_dict=lambda: expected_payload)
+
+    monkeypatch.setattr("parallax.cli.export_prototype_validation_report", fake_export)
+
+    main(
+        [
+            "model",
+            "validate-prototype",
+            str(features),
+            str(split_manifest),
+            str(model_bundle),
+            str(output),
+            "--expected-manifest-sha256",
+            expected_sha256,
+        ]
+    )
+
+    assert json.loads(capsys.readouterr().out) == expected_payload
+
+
+def test_main_exports_prototype_ood_calibration(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    features = tmp_path / "features.parquet"
+    split_manifest = tmp_path / "capture-splits.json"
+    model_bundle = tmp_path / "prototype-model.json"
+    output = tmp_path / "prototype-calibration.json"
+    expected_manifest_sha256 = "4" * 64
+    expected_bundle_sha256 = "5" * 64
+    expected_payload = {
+        "schema_version": "vnat-prototype-ood-calibration-artifact-1",
+        "evaluation_policy": {
+            "geometry_fit_partition": "train",
+            "density_fit_partition": "calibration",
+            "test_evaluated": False,
+        },
+    }
+
+    def fake_export(
+        selected_features: str,
+        selected_manifest: str,
+        selected_bundle: str,
+        selected_output: str,
+        *,
+        expected_manifest_sha256: str,
+        expected_model_bundle_sha256: str,
+    ) -> object:
+        assert selected_features == str(features)
+        assert selected_manifest == str(split_manifest)
+        assert selected_bundle == str(model_bundle)
+        assert selected_output == str(output)
+        assert expected_manifest_sha256 == "4" * 64
+        assert expected_model_bundle_sha256 == "5" * 64
+        return SimpleNamespace(as_dict=lambda: expected_payload)
+
+    monkeypatch.setattr("parallax.cli.export_prototype_ood_calibration", fake_export)
+
+    main(
+        [
+            "model",
+            "calibrate-prototype",
+            str(features),
+            str(split_manifest),
+            str(model_bundle),
+            str(output),
+            "--expected-manifest-sha256",
+            expected_manifest_sha256,
+            "--expected-model-bundle-sha256",
+            expected_bundle_sha256,
+        ]
+    )
+
+    assert json.loads(capsys.readouterr().out) == expected_payload
+
+
+def test_main_exports_frozen_prototype_test_report(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    features = tmp_path / "features.parquet"
+    split_manifest = tmp_path / "capture-splits.json"
+    model_bundle = tmp_path / "prototype-model.json"
+    calibration = tmp_path / "prototype-calibration.json"
+    output = tmp_path / "prototype-test.json"
+    expected_manifest_sha256 = "6" * 64
+    expected_bundle_sha256 = "7" * 64
+    expected_calibration_sha256 = "8" * 64
+    expected_payload = {
+        "schema_version": "vnat-prototype-test-report-1",
+        "evaluation_policy": {
+            "evaluation_partition": "test",
+            "candidate_frozen_before_test": True,
+            "model_selection_after_test": False,
+            "test_evaluated": True,
+        },
+    }
+
+    def fake_export(
+        selected_features: str,
+        selected_manifest: str,
+        selected_bundle: str,
+        selected_calibration: str,
+        selected_output: str,
+        *,
+        expected_manifest_sha256: str,
+        expected_model_bundle_sha256: str,
+        expected_calibration_artifact_sha256: str,
+    ) -> object:
+        assert selected_features == str(features)
+        assert selected_manifest == str(split_manifest)
+        assert selected_bundle == str(model_bundle)
+        assert selected_calibration == str(calibration)
+        assert selected_output == str(output)
+        assert expected_manifest_sha256 == "6" * 64
+        assert expected_model_bundle_sha256 == "7" * 64
+        assert expected_calibration_artifact_sha256 == "8" * 64
+        return SimpleNamespace(as_dict=lambda: expected_payload)
+
+    monkeypatch.setattr("parallax.cli.export_prototype_test_report", fake_export)
+
+    main(
+        [
+            "model",
+            "evaluate-prototype",
+            str(features),
+            str(split_manifest),
+            str(model_bundle),
+            str(calibration),
+            str(output),
+            "--expected-manifest-sha256",
+            expected_manifest_sha256,
+            "--expected-model-bundle-sha256",
+            expected_bundle_sha256,
+            "--expected-calibration-sha256",
+            expected_calibration_sha256,
+        ]
+    )
+
+    assert json.loads(capsys.readouterr().out) == expected_payload

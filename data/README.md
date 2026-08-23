@@ -88,6 +88,25 @@ metrics, and solver convergence. The accepted report is 4,747 bytes and has SHA-
 runs produced identical report bytes. The processed report remains excluded from Git, and
 calibration and test are not evaluated by this command.
 
+The accepted uncertainty-modeling artifacts are also stored under
+`data/processed/vnat-release-1/` and remain excluded from Git:
+
+| Artifact | Purpose | SHA-256 |
+| --- | --- | --- |
+| `prototype-model.json` | Frozen training-derived model and inference state | `1c61678611043a7f70f02836ae23bbc7c1abf683b015e23ebafed4d941ecdef7` |
+| `prototype-validation.json` | Candidate-selection evidence from validation only | `79b28ac5f3fe6988161fa6df7e5fa8831e6db1b46c1f5c0ef66a2a1148a3322f` |
+| `prototype-ood-calibration.json` | Training geometry and calibration-only class KDEs | `af1d066ea2d96943c873b75e897ca4c7d910c79813a61b605eec8c7ec3c1fd9d` |
+| `prototype-test.json` | One-shot final test evidence | `5c3c95b040fae4de2ffc27ac8eb143b8deee4c43c7c55a621843d5190b2813b4` |
+
+Every loader verifies the expected artifact checksum and its upstream feature, split, model, and
+calibration bindings. Export commands refuse to overwrite existing paths. The model and
+validation report reproduced byte for byte in an independent run; the calibration artifact also
+reproduced byte for byte. The final test report was deliberately generated once and matched its
+CLI standard output exactly. It must not be replayed as a source of additional tuning evidence.
+
+See [VNAT Prototype and Uncertainty Evaluation](../docs/uncertainty-modeling.md) for the complete
+partition policy, configuration, results, and limitations.
+
 The current Pandas loader still reads the complete fixed-format dataframe. Validation and export
 used approximately 5.5 GiB of resident memory on the initial development machine. The accepted
 release export completed in 30.58 seconds and produced a 99,585,954-byte Parquet file. Later

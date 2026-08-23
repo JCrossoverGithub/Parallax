@@ -7,7 +7,9 @@ deterministically windowed, and exported by Parallax on 18 August 2026. Its 129-
 representation was independently implemented and exported on 19 August 2026. The PCAP archive
 has not yet been downloaded or validated. The primary capture-grouped model-development split was
 generated and accepted on 21 August 2026. Initial majority-class and balanced logistic-regression
-baselines were subsequently evaluated on the capture-held-out validation partition.
+baselines were subsequently evaluated on the capture-held-out validation partition. A frozen
+prototype candidate was selected on validation, fitted with OOD densities on calibration, and
+evaluated once on the capture-held-out test partition on 23 August 2026.
 
 ## Source and version
 
@@ -270,14 +272,31 @@ Balanced logistic regression reaches 93.42% validation accuracy, 73.31% balanced
 0.745 macro F1. Its weakest category is VoIP, with 19.05% recall on 42 windows from one validation
 capture; 34 of those windows are classified as File Transfer. These results must therefore be
 read as capture-held-out validation evidence rather than population-level performance estimates.
-Calibration and test have not been evaluated. Full configuration and evidence are documented in
+That baseline workflow did not evaluate calibration or test. Full configuration and evidence are
+documented in
 [Initial VNAT Validation Baselines](baseline-modeling.md).
+
+## Prototype evaluation context
+
+The selected prototype reaches 93.47% validation accuracy, 87.89% balanced accuracy, and 0.808
+macro F1. After calibration-only OOD density fitting and a complete policy freeze, the one-shot
+test result is 86.70% accuracy, 82.08% balanced accuracy, and 0.713 macro F1. Expected calibration
+error increases from 0.065 on validation to 0.133 on test.
+
+The dominant test failure is category-specific rather than uniform: 186 of 442 C2 windows and 63
+of 255 Streaming windows are predicted as VoIP. VoIP recall is 97.73%, but its precision is only
+14.29%; C2 recall is 48.42%. Chat and File Transfer retain F1 scores of 0.993 and 0.918.
+
+At the frozen 0.95 OOD threshold, 11 of 2,452 known test windows are flagged, all from C2. No true
+OOD examples exist in this test partition, so this is a 0.45% known-traffic false-positive rate,
+not a measurement of OOD detection power. The complete artifact chain and results are documented
+in [VNAT Prototype and Uncertainty Evaluation](uncertainty-modeling.md).
 
 ## Intended use
 
 - Develop deterministic ingestion, windowing, and feature contracts.
 - Train five-category traffic-classification baselines.
-- Evaluate probability calibration separately from out-of-distribution detection.
+- Measure probability calibration separately from out-of-distribution behavior.
 - Compare VPN and non-VPN behavior without decrypting payloads.
 - Replay public captures through the same feature path used at inference time.
 

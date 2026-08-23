@@ -2,9 +2,10 @@
 
 ## Status
 
-The pipeline through deterministic capture-grouped partitions and initial validation baselines is
-implemented and verified. Generated data remains outside Git; code, contracts, and measured
-results remain reviewable in the repository.
+The pipeline through deterministic capture-grouped partitions, baseline validation, frozen
+prototype training, calibration-only OOD fitting, and one-shot test evaluation is implemented
+and verified. Generated data remains outside Git; code, contracts, checksums, and measured results
+remain reviewable in the repository.
 
 ## Data lineage
 
@@ -16,7 +17,9 @@ flowchart TD
     D[Shared feature calculator<br/>25 flow statistics<br/>104 wavelet features]
     E[vnat-feature-artifact-1 Parquet<br/>15,095 rows<br/>129 float32 features]
     F[Capture-grouped manifests<br/>train / validation / calibration / test]
-    G[Training-only baselines<br/>validation-only metrics]
+    G[Training-only candidate<br/>validation selection]
+    H[Calibration-only KDEs<br/>frozen OOD scoring]
+    I[One-shot test report<br/>no post-test selection]
 
     A -->|checksum before deserialization| B
     B -->|immutable export + manifest| C
@@ -24,6 +27,8 @@ flowchart TD
     D -->|bounded row groups| E
     E -->|checksum + exact schema| F
     F -->|manifest-bound arrays| G
+    G -->|frozen model checksum| H
+    H -->|frozen policy + checksums| I
 ```
 
 ## Implemented stages
@@ -36,6 +41,9 @@ flowchart TD
 | Feature export | Non-nullable identity, labels, packet count, and 129 `float32` features | Deterministic 14,702,124-byte `vnat-feature-artifact-1` artifact |
 | Capture splitting | Indivisible captures, hard coverage constraints, and deterministic mixed-integer optimization | Optimal 162-capture `vnat-capture-split-manifest-1` artifact |
 | Baseline validation | Training-only scaling and estimators; validation-only metrics | Deterministic `vnat-baseline-validation-report-1` with convergence evidence |
+| Prototype validation | Deterministic episodic training and validation-only candidate evidence | Byte-identical `vnat-prototype-model-bundle-1` and validation report replays |
+| OOD calibration | Training-derived geometry and calibration-only class KDE fitting | Byte-identical `vnat-prototype-ood-calibration-artifact-1` replay |
+| Final evaluation | Frozen model, calibration, thresholds, and reporting policy | One-shot `vnat-prototype-test-report-1` with checksum-matched CLI output |
 
 ## Artifact chain
 
@@ -46,6 +54,10 @@ flowchart TD
 | `features-release-compatible.parquet` | 15,095 vectors | `611dcb63c66e04f461fb7500f96762c1722a06fbdde700dc5aa42ae021e39f16` |
 | `capture-splits.json` | 162 captures | `a1aeee5f118c1e3bd57aa7232eb009634c098b9025571786614798953ebd8a0f` |
 | `baseline-validation.json` | 2 reference models | `e4aece1d97cbd55892971bcac7897269d8976024746d3a7881009e4d75ed6c38` |
+| `prototype-model.json` | Frozen prototype candidate | `1c61678611043a7f70f02836ae23bbc7c1abf683b015e23ebafed4d941ecdef7` |
+| `prototype-validation.json` | Validation selection evidence | `79b28ac5f3fe6988161fa6df7e5fa8831e6db1b46c1f5c0ef66a2a1148a3322f` |
+| `prototype-ood-calibration.json` | Calibration-only OOD densities | `af1d066ea2d96943c873b75e897ca4c7d910c79813a61b605eec8c7ec3c1fd9d` |
+| `prototype-test.json` | 2,452 test windows | `5c3c95b040fae4de2ffc27ac8eb143b8deee4c43c7c55a621843d5190b2813b4` |
 
 Each generated Parquet artifact has a companion JSON manifest containing its source identity,
 configuration, schema version, output checksum, and audited counts. Exporters refuse to overwrite
@@ -74,6 +86,19 @@ full contract and acceptance evidence.
 The initial majority-class and class-balanced logistic-regression models are fitted on 9,046
 training windows and evaluated on 2,098 validation windows. Logistic regression reached 93.42%
 accuracy, 73.31% balanced accuracy, and 0.745 macro F1. These values establish a validation
-reference floor, not final test performance. Calibration and test remain unevaluated. See
+reference floor, not final test performance. That baseline workflow does not evaluate calibration
+or test. See
 [Initial VNAT Validation Baselines](baseline-modeling.md) for configuration, per-category results,
 confusion matrices, and limitations.
+
+## Frozen prototype boundary
+
+The prototype candidate is fitted on 9,046 training windows and selected on 2,098 validation
+windows. Training-derived relative-Mahalanobis geometry is combined with class KDEs fitted on
+1,499 calibration windows. Only after the model, calibration, thresholds, and evaluation policy
+were frozen was the candidate evaluated once on 2,452 test windows. Test balanced accuracy is
+82.08%, macro F1 is 0.713, and 11 known windows are flagged at the fixed 0.95 OOD threshold.
+
+The test contains no true OOD examples, so the OOD result measures known-traffic false positives
+only. See [VNAT Prototype and Uncertainty Evaluation](uncertainty-modeling.md) for the complete
+evidence and claim boundaries.

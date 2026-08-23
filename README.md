@@ -10,9 +10,11 @@ Parallax is in active development. The repository now includes a typed VNAT rele
 fail-closed source checksum verification, structural inspection for the raw HDF5 dataset,
 deterministic capture-aligned window extraction, reproduction of the published 129-feature
 representation, versioned Parquet exports, deterministic capture-grouped partitioning, strict
-quality gates, a manifest-bound modeling loader, and deterministic majority-class and balanced
-logistic-regression validation baselines. No calibrated uncertainty model, deployable model
-bundle, or live monitoring capability is claimed yet.
+quality gates, a manifest-bound modeling loader, deterministic reference baselines, and a frozen
+prototypical embedding model with relative-Mahalanobis OOD calibration. The candidate completed
+one checksum-bound test evaluation after its model, calibration, thresholds, and reporting policy
+were frozen. Raw PCAP replay, runtime inference, and a live monitoring capability are not yet
+implemented.
 
 The first operational target is a deterministic replay pipeline:
 
@@ -117,7 +119,13 @@ uv run --locked parallax model validate-baselines \
 The command verifies both source artifacts, fits preprocessing and estimators using only the
 training partition, and evaluates only validation data. Its deterministic JSON report records
 provenance, configuration, convergence, aggregate metrics, per-category metrics, and confusion
-matrices. Calibration and test remain unevaluated.
+matrices. That baseline command does not access calibration or test.
+
+The accepted uncertainty-aware workflow is separated into validation, calibration, and final
+test commands. Model selection uses validation only; OOD density fitting uses calibration only;
+the frozen candidate was evaluated once on test. Exact commands, artifact checksums, metrics, and
+interpretation boundaries are recorded in
+[VNAT Prototype and Uncertainty Evaluation](docs/uncertainty-modeling.md).
 
 Run the complete local quality gate:
 
@@ -135,6 +143,7 @@ uv build --no-sources
 - [Reproducible data pipeline](docs/data-pipeline.md)
 - [Capture-grouped splitting](docs/capture-splitting.md)
 - [Initial validation baselines](docs/baseline-modeling.md)
+- [Prototype and uncertainty evaluation](docs/uncertainty-modeling.md)
 - [Dataset card](docs/dataset-card.md)
 - [VNAT release manifest](data/manifests/vnat-release-1.json)
 - [Model card](docs/model-card.md)
