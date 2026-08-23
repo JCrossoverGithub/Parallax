@@ -37,6 +37,13 @@ from parallax.modeling.inference import (
     evaluate_prototype_validation,
     prototype_class_probabilities,
 )
+from parallax.modeling.prototype_report import (
+    PROTOTYPE_MODEL_BUNDLE_SCHEMA_VERSION,
+    PROTOTYPE_VALIDATION_REPORT_SCHEMA_VERSION,
+    PrototypeValidationReport,
+    PrototypeValidationReportError,
+    export_prototype_validation_report,
+)
 from parallax.modeling.prototypes import (
     DROPOUT_PROBABILITY,
     EMBEDDING_DIMENSION,
@@ -80,8 +87,10 @@ __all__ = [
     "EPISODIC_SAMPLER_SCHEMA_VERSION",
     "HIDDEN_DIMENSION",
     "MODELING_DATASET_SCHEMA_VERSION",
+    "PROTOTYPE_MODEL_BUNDLE_SCHEMA_VERSION",
     "PROTOTYPE_MODEL_SCHEMA_VERSION",
     "PROTOTYPE_TRAINING_SCHEMA_VERSION",
+    "PROTOTYPE_VALIDATION_REPORT_SCHEMA_VERSION",
     "PROTOTYPE_VALIDATION_SCHEMA_VERSION",
     "TRAFFIC_CATEGORY_COUNT",
     "BaselineConfig",
@@ -106,6 +115,8 @@ __all__ = [
     "PrototypeTrainingConfig",
     "PrototypeTrainingError",
     "PrototypeTrainingResult",
+    "PrototypeValidationReport",
+    "PrototypeValidationReportError",
     "PrototypeValidationResult",
     "TrainedBaseline",
     "TrainingEpisodeSampler",
@@ -113,6 +124,7 @@ __all__ = [
     "calculate_class_prototypes",
     "evaluate_prototype_validation",
     "export_baseline_validation_report",
+    "export_prototype_validation_report",
     "fit_initial_baselines",
     "fit_prototype_embedding",
     "load_partitioned_feature_dataset",

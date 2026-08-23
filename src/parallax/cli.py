@@ -24,7 +24,10 @@ from parallax.features import (
     export_capture_split_manifest,
     export_vnat_features,
 )
-from parallax.modeling import export_baseline_validation_report
+from parallax.modeling import (
+    export_baseline_validation_report,
+    export_prototype_validation_report,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -139,6 +142,23 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     baseline_parser.set_defaults(handler=_validate_baselines)
 
+    prototype_parser = model_commands.add_parser(
+        "validate-prototype",
+        help="train a prototype model and publish validation-only artifacts",
+    )
+    prototype_parser.add_argument("features", help="path to a vnat-feature-artifact-1 Parquet file")
+    prototype_parser.add_argument(
+        "split_manifest", help="path to its trusted capture-split manifest"
+    )
+    prototype_parser.add_argument("model_bundle", help="destination .json model bundle path")
+    prototype_parser.add_argument("output", help="destination .json validation report path")
+    prototype_parser.add_argument(
+        "--expected-manifest-sha256",
+        default=RELEASE_COMPATIBLE_CAPTURE_SPLIT_MANIFEST_SHA256,
+        help="trusted split-manifest SHA-256 checked before processing",
+    )
+    prototype_parser.set_defaults(handler=_validate_prototype)
+
     return parser
 
 
@@ -190,6 +210,17 @@ def _validate_baselines(arguments: argparse.Namespace) -> None:
     report = export_baseline_validation_report(
         arguments.features,
         arguments.split_manifest,
+        arguments.output,
+        expected_manifest_sha256=arguments.expected_manifest_sha256,
+    )
+    print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
+
+
+def _validate_prototype(arguments: argparse.Namespace) -> None:
+    report = export_prototype_validation_report(
+        arguments.features,
+        arguments.split_manifest,
+        arguments.model_bundle,
         arguments.output,
         expected_manifest_sha256=arguments.expected_manifest_sha256,
     )
