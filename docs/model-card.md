@@ -2,64 +2,131 @@
 
 ## Status
 
-Parallax has trained and accepted two deterministic validation baselines: a majority-class
-classifier and class-balanced multinomial logistic regression. Neither is selected or packaged
-for deployment. No probability calibration, OOD calibration, or final test evaluation has been
-performed.
+Parallax has selected and evaluated one uncertainty-aware VNAT prototype candidate. The model was
+trained on the capture-grouped training partition, selected on validation, frozen into a
+checksum-bound bundle, fitted with relative-Mahalanobis OOD density estimates on calibration,
+and evaluated once on test after the procedure was committed.
 
-The complete baseline evidence is recorded in
-[Initial VNAT Validation Baselines](baseline-modeling.md).
+This is a research artifact and future runtime candidate. It is not approved as a production
+classifier, intrusion-detection system, malware detector, or general Internet-traffic model.
+Complete evidence is recorded in
+[VNAT Prototype and Uncertainty Evaluation](uncertainty-modeling.md).
 
-## Initial validation evidence
+## Model identity
 
-| Model | Accuracy | Balanced accuracy | Macro F1 |
-| --- | ---: | ---: | ---: |
-| Majority class | 0.734509 | 0.200000 | 0.169387 |
-| Balanced logistic regression | 0.934223 | 0.733077 | 0.745291 |
+| Property | Value |
+| --- | --- |
+| Model schema | `vnat-prototype-model-1` |
+| Bundle schema | `vnat-prototype-model-bundle-1` |
+| Bundle SHA-256 | `1c61678611043a7f70f02836ae23bbc7c1abf683b015e23ebafed4d941ecdef7` |
+| Calibration schema | `vnat-prototype-ood-calibration-artifact-1` |
+| Calibration SHA-256 | `af1d066ea2d96943c873b75e897ca4c7d910c79813a61b605eec8c7ec3c1fd9d` |
+| Feature count | 129 |
+| Embedding dimension | 64 |
+| Categories | Streaming, VoIP, Chat, C2, File Transfer |
+| Execution target | Deterministic CPU-only PyTorch |
 
-The models use 129 release-compatible features. Preprocessing and estimators are fitted on 9,046
-training windows from 95 captures and evaluated on 2,098 validation windows from 25 disjoint
-captures. Calibration and test remain unevaluated.
+The network has four fully connected 64-unit ReLU layers and 25% dropout before layers three and
+four. Training uses a training-only standardizer, 20,000 deterministic episodes, five support
+examples per class, 512 queries per episode, Adam at `1e-3`, and seed 17.
 
-The logistic model performs strongly on Chat, Streaming, and C2 in this partition but recalls only
-8 of 42 VoIP windows. Thirty-four VoIP windows are classified as File Transfer. The validation
-set contains only one VoIP capture, so this is an observed failure mode rather than a stable
-estimate of VoIP performance.
+Closed-set probabilities use negative diagonal-Mahalanobis distance to training-derived class
+statistics. They are raw softmax outputs and are not temperature-scaled.
 
-## Current intended use
+## Evaluation policy
 
-The baselines provide a reproducible reference floor for model development and verify the
-manifest-bound training and reporting pipeline. They must not be used as an operational traffic
-classifier or cited as final VNAT test performance.
+| Partition | Role |
+| --- | --- |
+| Training | Fit preprocessing, network parameters, class statistics, and OOD geometry |
+| Validation | Candidate selection and closed-set characterization |
+| Calibration | Fit class-conditional OOD KDEs only |
+| Test | One final evaluation after model and policy freeze |
 
-## Current exclusions
+Capture identifiers are disjoint across partitions. The final report was generated from commit
+`df785d4`; its SHA-256 is
+`5c3c95b040fae4de2ffc27ac8eb143b8deee4c43c7c55a621843d5190b2813b4`. No post-test model
+selection or threshold change was performed.
 
-- No final model has been selected.
-- No model bundle has been serialized or approved for runtime loading.
-- Predicted probabilities have not been calibrated.
-- No OOD score or rejection threshold exists.
-- No calibration or test metrics are available.
-- Results do not establish performance on current enterprise or public Internet traffic.
-- The VNAT C2 label represents benign SSH and RDP behavior, not malware ground truth.
+## Closed-set performance
 
-## Required release information
+| Metric | Validation | Test |
+| --- | ---: | ---: |
+| Accuracy | 0.934700 | 0.867047 |
+| Balanced accuracy | 0.878908 | 0.820828 |
+| Macro F1 | 0.808133 | 0.712857 |
+| Expected calibration error | 0.065399 | 0.132825 |
 
-- Model architecture and semantic version
-- Intended and excluded uses
-- Training, validation, calibration, and test manifest checksums
-- Feature-schema and preprocessing versions
-- Class mapping
-- Closed-set and per-category metrics
-- Probability-calibration metrics
-- OOD evaluation and threshold-selection method
-- VPN and non-VPN evaluation slices
-- Training and inference hardware
-- CPU inference latency and model size
-- Robustness and feature-ablation results
-- Ethical, privacy, and operational limitations
+### Per-category test performance
+
+| Category | Precision | Recall | F1 | Support |
+| --- | ---: | ---: | ---: | ---: |
+| Streaming | 0.783898 | 0.725490 | 0.753564 | 255 |
+| VoIP | 0.142857 | 0.977273 | 0.249275 | 44 |
+| Chat | 0.998089 | 0.988644 | 0.993344 | 1,585 |
+| C2 | 0.990741 | 0.484163 | 0.650456 | 442 |
+| File Transfer | 0.906977 | 0.928571 | 0.917647 | 126 |
+
+The primary failure is systematic overprediction of VoIP. Of the 301 VoIP predictions, only 43
+are correct; 186 are C2 and 63 are Streaming. The model therefore achieves high VoIP recall but
+low precision, while missing more than half of true C2 windows. Chat and File Transfer are much
+more stable on the accepted test partition.
+
+The validation-to-test declines in balanced accuracy and macro F1, together with ECE increasing
+from 0.065 to 0.133, demonstrate material capture-held-out generalization and calibration risk.
+
+## OOD behavior
+
+The OOD artifact fits full-covariance relative-Mahalanobis geometry from frozen training support
+and one SciPy-compatible Gaussian KDE per class from calibration scores. OOD score is one minus
+the fitted upper-tail probability.
+
+The known-traffic test set produces:
+
+| Fixed threshold | Flagged windows | False-positive rate |
+| --- | ---: | ---: |
+| 0.95 | 11 of 2,452 | 0.004486 |
+| 0.99 | 0 of 2,452 | 0.000000 |
+
+All 11 flags at 0.95 are C2 windows. No true OOD examples are present, so these values measure
+only in-distribution false-positive behavior. They provide no OOD AUROC, recall, or detection-power
+claim. The Scott-bandwidth KDEs are also sensitive to extreme calibration-score tails and compress
+several class score distributions near the middle.
+
+## Intended use
+
+- Reproduce and audit the VNAT uncertainty-aware modeling procedure.
+- Provide a frozen model and calibration contract for deterministic PCAP replay development.
+- Display category, raw confidence, and OOD score as separate outputs in a controlled demo.
+- Serve as a reference for separately pre-registered OOD and robustness experiments.
+
+## Excluded use and claims
+
+- Do not use the model for automated blocking, enforcement, authorization, or safety decisions.
+- Do not describe VNAT C2 labels as malicious command-and-control detection; they represent benign
+  SSH and RDP traffic.
+- Do not generalize results to arbitrary applications, networks, users, VPNs, or current traffic.
+- Do not describe raw class probabilities as calibrated probabilities.
+- Do not claim OOD detection performance from the known-traffic false-positive test.
+- Do not use the final test report to tune or select another model under this split.
+- Do not activate the model against an incompatible feature schema or unverified artifact chain.
+
+## Data and representation limitations
+
+- VNAT is a controlled, historical dataset containing ten applications and five categories.
+- Metrics are window-weighted rather than capture-weighted.
+- Some categories have few source captures, especially VoIP and Streaming.
+- The release-compatible features intentionally preserve the publisher's observed directional
+  byte-total defect.
+- Filename-derived labels describe the source capture and may not perfectly describe every window.
+- Application, VPN-status, robustness, and external-dataset slices remain unreported.
 
 ## Activation requirements
 
-The runtime must reject a model bundle when its checksum fails, required artifacts are absent, the
-feature schema is incompatible, feature order or dimensions differ, or OOD calibration artifacts do
-not match the model.
+A runtime must verify the model bundle checksum, calibration checksum, upstream feature and split
+bindings, schema versions, ordered feature names, feature dimension, finite values, and category
+order before scoring. It must report confidence and OOD score independently and preserve the
+active artifact identities with every prediction.
+
+Operational activation also requires raw-PCAP feature parity, bounded inference measurements,
+failure-mode testing, and clear UI communication of the model's limitations. Those requirements
+are not yet satisfied.

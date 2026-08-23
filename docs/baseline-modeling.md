@@ -4,8 +4,8 @@
 
 Parallax has implemented and accepted two deterministic reference classifiers for the five VNAT
 traffic categories. Both models are fitted only on the capture-grouped training partition and
-evaluated only on the validation partition. The calibration and test partitions have not been
-evaluated.
+evaluated only on the validation partition. This baseline workflow does not access calibration or
+test. Later prototype evaluation is documented separately.
 
 These results establish a reference floor for later uncertainty-aware modeling. They are not a
 final model-selection result, a deployment claim, or an estimate of performance on arbitrary
@@ -127,11 +127,11 @@ per-category metrics, and confusion matrices in deterministically encoded JSON.
 - The logistic baseline has not been probability-calibrated and exposes no OOD score.
 - Application-level, VPN-status, robustness, and temporal-distribution slices are not yet reported.
 - No serialized model bundle or runtime classifier has been approved.
-- The test partition remains reserved for one final evaluation after model and threshold selection.
+- These baseline results were not recomputed after the later prototype test evaluation.
 
-## Next modeling stage
+## Subsequent modeling stage
 
-The next stage will compare uncertainty-aware candidates against this validation reference. Model
-selection remains restricted to training and validation data. Probability and OOD calibration will
-use only the calibration partition after a candidate is selected; the final test partition will
-remain untouched until the complete evaluation procedure is frozen.
+The uncertainty-aware stage compared a prototypical candidate against this validation reference,
+fitted OOD densities using calibration only, and performed a one-shot test evaluation after the
+candidate and procedure were frozen. See
+[VNAT Prototype and Uncertainty Evaluation](uncertainty-modeling.md).

@@ -5,9 +5,9 @@
 | Field | Value |
 | --- | --- |
 | Project name | Parallax |
-| Document version | 0.2 |
-| Status | Initial design draft |
-| Date | 2026-08-18 |
+| Document version | 0.3 |
+| Status | Implemented through frozen uncertainty-model evaluation |
+| Date | 2026-08-23 |
 | Owner | Josh Schultz |
 | Intended repository | `Parallax` |
 | Initial development environment | Windows 11 with WSL 2 Ubuntu 24.04 |
@@ -376,24 +376,31 @@ The project will establish progressively stronger baselines:
 
 The first two baselines are implemented. On the capture-held-out validation partition, balanced
 logistic regression reaches 93.42% accuracy, 73.31% balanced accuracy, and 0.745 macro F1. These
-are validation reference values only; calibration and test remain unevaluated. Configuration,
-per-category results, confusion matrices, provenance, and limitations are documented in
+are validation reference values only; the baseline workflow does not access calibration or test.
+Configuration, per-category results, confusion matrices, provenance, and limitations are documented in
 [Initial VNAT Validation Baselines](baseline-modeling.md).
 
-The prototypical network will not be accepted as an improvement unless it demonstrates useful uncertainty behavior in addition to classification performance.
+The prototype candidate improves validation balanced accuracy to 87.89% and macro F1 to 0.808.
+Its one-shot capture-held-out test result is 82.08% balanced accuracy and 0.713 macro F1. The
+validation-to-test decline and category-specific failures remain part of the accepted evidence.
 
 ### 11.3 Primary uncertainty model
 
-The paper's general method will be reproduced as the first uncertainty-aware candidate:
+The paper's general method is implemented as the first uncertainty-aware candidate:
 
 - Fully connected embedding network
 - Class prototypes calculated in embedding space
 - Distance-based class probabilities
 - Relative Mahalanobis distance for OOD ranking
-- Calibration distribution fitted only on held-out calibration data
+- Class-conditional OOD calibration distributions fitted only on held-out calibration data
 - Interpretable OOD score derived from the calibration distribution
 
-Implementation details may change after reproduction, but deviations will be recorded in architecture decision records.
+The accepted implementation uses a deterministic four-layer 64-unit embedding network, 20,000
+episodes, training-only standardization and class geometry, calibration-only Gaussian KDEs over
+relative Mahalanobis distance, and fixed OOD thresholds of 0.95 and 0.99. Raw class probabilities
+are not temperature-scaled. The final known-traffic test false-positive rates are 0.45% and 0%,
+respectively, but no true OOD examples are present. See
+[VNAT Prototype and Uncertainty Evaluation](uncertainty-modeling.md).
 
 ### 11.4 Observation and feature design
 
@@ -419,10 +426,13 @@ Four logical partitions are required:
 | --- | --- |
 | Training | Learn model parameters |
 | Validation | Select architecture and hyperparameters |
-| Calibration | Fit probability and OOD calibration only |
+| Calibration | Fit OOD density calibration only; perform no model selection |
 | Test | Final locked evaluation |
 
-The primary evaluation will group by source capture so windows from one capture cannot cross partitions.
+The primary evaluation groups by source capture so windows from one capture cannot cross
+partitions. The accepted model was selected on validation, calibrated without validation or test
+access, and evaluated once on test only after the candidate, thresholds, and report policy were
+frozen.
 
 The implemented `vnat-capture-split-1` contract targets 60% training, 15% validation, 10%
 calibration, and 15% test windows. It treats each capture as indivisible and enforces category
@@ -732,15 +742,20 @@ This exit criterion is satisfied by the manifest-bound dataset loader and determ
 
 Deliverables:
 
-- Prototypical model reproduction
-- Probability and OOD calibration
-- Leave-one-application-out evaluation
-- Versioned model bundle
-- Initial model card
+- Prototypical model reproduction - complete
+- Raw-probability calibration diagnostics and OOD density calibration - complete
+- One-shot capture-held-out test evaluation - complete
+- Leave-one-application-out OOD detection study - deferred as a separate pre-registered experiment
+- Versioned model and calibration bundles - complete
+- Model card and immutable experiment record - complete
 
 Exit criteria:
 
 - OOD behavior is evaluated separately from closed-set accuracy and documented honestly.
+
+The core exit criterion is satisfied for calibration and known-traffic false-positive behavior.
+OOD detection power remains explicitly unmeasured until an application-held-out or external OOD
+experiment is separately frozen and executed.
 
 ### Milestone 3: Raw PCAP pipeline
 
@@ -837,6 +852,10 @@ The first portfolio release is acceptable when:
 
 No target accuracy is declared in advance. Baseline results will determine realistic performance gates. This avoids choosing success criteria from the paper's reported test result before reproducing its data partitioning and checking for capture-level leakage.
 
+Criteria 1 through 7 are now implemented, with criterion 7 bounded to known-traffic OOD
+false-positive behavior. OOD detection power, runtime parity, and the operational criteria remain
+future work.
+
 ## 21. Architecture Decision Record Index
 
 The following initial decisions should be recorded as individual ADRs when the repository is created:
@@ -857,10 +876,10 @@ The following initial decisions should be recorded as individual ADRs when the r
 
 | ID | Question | Decision point |
 | --- | --- | --- |
-| OQ-002 | Does the feature HDF5 file retain an unambiguous source-capture identity for leakage-safe grouping? | Milestone 1 |
-| OQ-003 | Which VNAT release files and checksums are authoritative at download time? | Milestone 1 |
+| OQ-002 | Resolved: the supplied feature HDF5 does not retain capture identity; Parallax reconstructs features from capture-labeled raw data. | Milestone 1 |
+| OQ-003 | Resolved: accepted source identities and checksums are versioned in the VNAT release manifest. | Milestone 1 |
 | OQ-004 | Should MLflow remain a development-only service or ship in the demonstration stack? | Milestone 2 |
-| OQ-005 | Which OOD thresholding method performs best on capture-held-out and application-held-out data? | Milestone 2 |
+| OQ-005 | Partially resolved: 0.95 and 0.99 are frozen reference thresholds; comparative application-held-out evidence remains future work. | Separate OOD study |
 | OQ-006 | Can raw PCAP-derived features reproduce the supplied feature DataFrame closely enough for model reuse? | Milestone 3 |
 | OQ-007 | Should runtime feature vectors be retained for public demo sessions? | Milestone 4 security review |
 | OQ-008 | Is WebSocket replay sufficient, or is a replayable server-sent event stream simpler for the final UI? | Milestone 4 |
@@ -900,7 +919,10 @@ The final as-built report should clearly separate measured results from planned 
 
 ## 25. Immediate Next Step
 
-Create the `Parallax` repository and implement Milestone 0 as a minimal, tested skeleton. No dataset download or model implementation should begin until the repository includes the design, contribution workflow, dependency lock, basic CI, and initial ADRs.
+Begin Milestone 3 by downloading and verifying selected VNAT PCAP captures, then implement the
+bidirectional flow/window path and golden feature-parity fixtures. The frozen model artifacts must
+not be changed to accommodate runtime discrepancies; mismatches belong in the PCAP or feature
+pipeline until independently explained.
 
 ---
 
@@ -910,3 +932,4 @@ Create the `Parallax` repository and implement Milestone 0 as a minimal, tested 
 | --- | --- | --- |
 | 0.1 | 2026-08-18 | Initial project definition, architecture, requirements, evaluation plan, security boundaries, milestones, and acceptance criteria |
 | 0.2 | 2026-08-18 | Adopted Parallax as the permanent project and repository name |
+| 0.3 | 2026-08-23 | Recorded the implemented baseline, frozen prototype, calibration-only OOD workflow, one-shot test evidence, and Milestone 3 handoff |
