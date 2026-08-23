@@ -22,6 +22,11 @@ from parallax.modeling.calibration import (
     PrototypeCalibrationResult,
     calibrate_prototype_ood,
 )
+from parallax.modeling.calibration_bundle import (
+    LoadedPrototypeCalibration,
+    PrototypeCalibrationBundleError,
+    load_prototype_ood_calibration,
+)
 from parallax.modeling.calibration_report import (
     PROTOTYPE_CALIBRATION_ARTIFACT_SCHEMA_VERSION,
     PrototypeCalibrationArtifact,
@@ -78,6 +83,11 @@ from parallax.modeling.report import (
     BaselineValidationReport,
     BaselineValidationReportError,
     export_baseline_validation_report,
+)
+from parallax.modeling.scoring import (
+    PrototypeScores,
+    PrototypeScoringError,
+    score_prototype_ood,
 )
 from parallax.modeling.training import (
     ADAM_BETA_1,
@@ -137,12 +147,14 @@ __all__ = [
     "FeaturePartition",
     "GaussianKDE1D",
     "LoadedPrototypeBundle",
+    "LoadedPrototypeCalibration",
     "ModelingDatasetError",
     "OODCalibrationError",
     "PartitionedFeatureDataset",
     "PrototypeBundleError",
     "PrototypeCalibrationArtifact",
     "PrototypeCalibrationArtifactError",
+    "PrototypeCalibrationBundleError",
     "PrototypeCalibrationError",
     "PrototypeCalibrationResult",
     "PrototypeEmbeddingNetwork",
@@ -151,6 +163,8 @@ __all__ = [
     "PrototypeInferenceError",
     "PrototypeInferenceState",
     "PrototypeModelingError",
+    "PrototypeScores",
+    "PrototypeScoringError",
     "PrototypeTrainingConfig",
     "PrototypeTrainingError",
     "PrototypeTrainingResult",
@@ -175,9 +189,11 @@ __all__ = [
     "fit_relative_mahalanobis_state",
     "load_partitioned_feature_dataset",
     "load_prototype_model_bundle",
+    "load_prototype_ood_calibration",
     "prototype_class_probabilities",
     "prototype_probabilities",
     "prototypical_cross_entropy",
     "relative_mahalanobis_scores",
+    "score_prototype_ood",
     "squared_euclidean_logits",
 ]
