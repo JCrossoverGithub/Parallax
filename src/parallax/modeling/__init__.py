@@ -22,6 +22,12 @@ from parallax.modeling.calibration import (
     PrototypeCalibrationResult,
     calibrate_prototype_ood,
 )
+from parallax.modeling.calibration_report import (
+    PROTOTYPE_CALIBRATION_ARTIFACT_SCHEMA_VERSION,
+    PrototypeCalibrationArtifact,
+    PrototypeCalibrationArtifactError,
+    export_prototype_ood_calibration,
+)
 from parallax.modeling.dataset import (
     MODELING_DATASET_SCHEMA_VERSION,
     FeaturePartition,
@@ -111,6 +117,7 @@ __all__ = [
     "KDE_BANDWIDTH_METHOD",
     "MODELING_DATASET_SCHEMA_VERSION",
     "OOD_CALIBRATION_SCHEMA_VERSION",
+    "PROTOTYPE_CALIBRATION_ARTIFACT_SCHEMA_VERSION",
     "PROTOTYPE_MODEL_BUNDLE_SCHEMA_VERSION",
     "PROTOTYPE_MODEL_SCHEMA_VERSION",
     "PROTOTYPE_TRAINING_SCHEMA_VERSION",
@@ -134,6 +141,8 @@ __all__ = [
     "OODCalibrationError",
     "PartitionedFeatureDataset",
     "PrototypeBundleError",
+    "PrototypeCalibrationArtifact",
+    "PrototypeCalibrationArtifactError",
     "PrototypeCalibrationError",
     "PrototypeCalibrationResult",
     "PrototypeEmbeddingNetwork",
@@ -157,6 +166,7 @@ __all__ = [
     "class_conditional_ood_scores",
     "evaluate_prototype_validation",
     "export_baseline_validation_report",
+    "export_prototype_ood_calibration",
     "export_prototype_validation_report",
     "fit_class_conditional_kdes",
     "fit_gaussian_kde",
