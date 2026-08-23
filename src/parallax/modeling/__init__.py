@@ -12,6 +12,11 @@ from parallax.modeling.baselines import (
     TrainedBaseline,
     fit_initial_baselines,
 )
+from parallax.modeling.bundle import (
+    LoadedPrototypeBundle,
+    PrototypeBundleError,
+    load_prototype_model_bundle,
+)
 from parallax.modeling.dataset import (
     MODELING_DATASET_SCHEMA_VERSION,
     FeaturePartition,
@@ -119,9 +124,11 @@ __all__ = [
     "EpisodeSamplingError",
     "FeaturePartition",
     "GaussianKDE1D",
+    "LoadedPrototypeBundle",
     "ModelingDatasetError",
     "OODCalibrationError",
     "PartitionedFeatureDataset",
+    "PrototypeBundleError",
     "PrototypeEmbeddingNetwork",
     "PrototypeEpisode",
     "PrototypeInferenceConfig",
@@ -149,6 +156,7 @@ __all__ = [
     "fit_prototype_embedding",
     "fit_relative_mahalanobis_state",
     "load_partitioned_feature_dataset",
+    "load_prototype_model_bundle",
     "prototype_class_probabilities",
     "prototype_probabilities",
     "prototypical_cross_entropy",
