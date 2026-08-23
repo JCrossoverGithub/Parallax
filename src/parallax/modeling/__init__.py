@@ -17,6 +17,11 @@ from parallax.modeling.bundle import (
     PrototypeBundleError,
     load_prototype_model_bundle,
 )
+from parallax.modeling.calibration import (
+    PrototypeCalibrationError,
+    PrototypeCalibrationResult,
+    calibrate_prototype_ood,
+)
 from parallax.modeling.dataset import (
     MODELING_DATASET_SCHEMA_VERSION,
     FeaturePartition,
@@ -129,6 +134,8 @@ __all__ = [
     "OODCalibrationError",
     "PartitionedFeatureDataset",
     "PrototypeBundleError",
+    "PrototypeCalibrationError",
+    "PrototypeCalibrationResult",
     "PrototypeEmbeddingNetwork",
     "PrototypeEpisode",
     "PrototypeInferenceConfig",
@@ -146,6 +153,7 @@ __all__ = [
     "TrainingEpisodeSampler",
     "build_prototype_inference_state",
     "calculate_class_prototypes",
+    "calibrate_prototype_ood",
     "class_conditional_ood_scores",
     "evaluate_prototype_validation",
     "export_baseline_validation_report",
