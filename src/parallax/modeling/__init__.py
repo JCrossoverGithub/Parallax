@@ -60,6 +60,12 @@ from parallax.modeling.evaluation import (
     PrototypeTestEvaluation,
     evaluate_prototype_test,
 )
+from parallax.modeling.final_report import (
+    PROTOTYPE_TEST_REPORT_SCHEMA_VERSION,
+    PrototypeTestReport,
+    PrototypeTestReportError,
+    export_prototype_test_report,
+)
 from parallax.modeling.inference import (
     PROTOTYPE_VALIDATION_SCHEMA_VERSION,
     PrototypeInferenceConfig,
@@ -146,6 +152,7 @@ __all__ = [
     "PROTOTYPE_MODEL_BUNDLE_SCHEMA_VERSION",
     "PROTOTYPE_MODEL_SCHEMA_VERSION",
     "PROTOTYPE_TEST_EVALUATION_SCHEMA_VERSION",
+    "PROTOTYPE_TEST_REPORT_SCHEMA_VERSION",
     "PROTOTYPE_TRAINING_SCHEMA_VERSION",
     "PROTOTYPE_VALIDATION_REPORT_SCHEMA_VERSION",
     "PROTOTYPE_VALIDATION_SCHEMA_VERSION",
@@ -186,6 +193,8 @@ __all__ = [
     "PrototypeScores",
     "PrototypeScoringError",
     "PrototypeTestEvaluation",
+    "PrototypeTestReport",
+    "PrototypeTestReportError",
     "PrototypeTrainingConfig",
     "PrototypeTrainingError",
     "PrototypeTrainingResult",
@@ -203,6 +212,7 @@ __all__ = [
     "evaluate_prototype_validation",
     "export_baseline_validation_report",
     "export_prototype_ood_calibration",
+    "export_prototype_test_report",
     "export_prototype_validation_report",
     "fit_class_conditional_kdes",
     "fit_gaussian_kde",

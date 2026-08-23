@@ -27,6 +27,7 @@ from parallax.features import (
 from parallax.modeling import (
     export_baseline_validation_report,
     export_prototype_ood_calibration,
+    export_prototype_test_report,
     export_prototype_validation_report,
 )
 
@@ -184,6 +185,38 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     calibration_parser.set_defaults(handler=_calibrate_prototype)
 
+    evaluation_parser = model_commands.add_parser(
+        "evaluate-prototype",
+        help="evaluate a frozen calibrated prototype once on the test partition",
+    )
+    evaluation_parser.add_argument(
+        "features", help="path to a vnat-feature-artifact-1 Parquet file"
+    )
+    evaluation_parser.add_argument(
+        "split_manifest", help="path to its trusted capture-split manifest"
+    )
+    evaluation_parser.add_argument("model_bundle", help="path to the frozen .json model bundle")
+    evaluation_parser.add_argument(
+        "calibration_artifact", help="path to the frozen .json OOD calibration artifact"
+    )
+    evaluation_parser.add_argument("output", help="destination .json final test report path")
+    evaluation_parser.add_argument(
+        "--expected-manifest-sha256",
+        default=RELEASE_COMPATIBLE_CAPTURE_SPLIT_MANIFEST_SHA256,
+        help="trusted split-manifest SHA-256 checked before processing",
+    )
+    evaluation_parser.add_argument(
+        "--expected-model-bundle-sha256",
+        required=True,
+        help="trusted frozen model-bundle SHA-256 checked before test evaluation",
+    )
+    evaluation_parser.add_argument(
+        "--expected-calibration-sha256",
+        required=True,
+        help="trusted calibration-artifact SHA-256 checked before test evaluation",
+    )
+    evaluation_parser.set_defaults(handler=_evaluate_prototype)
+
     return parser
 
 
@@ -262,6 +295,20 @@ def _calibrate_prototype(arguments: argparse.Namespace) -> None:
         expected_model_bundle_sha256=arguments.expected_model_bundle_sha256,
     )
     print(json.dumps(artifact.as_dict(), indent=2, sort_keys=True))
+
+
+def _evaluate_prototype(arguments: argparse.Namespace) -> None:
+    report = export_prototype_test_report(
+        arguments.features,
+        arguments.split_manifest,
+        arguments.model_bundle,
+        arguments.calibration_artifact,
+        arguments.output,
+        expected_manifest_sha256=arguments.expected_manifest_sha256,
+        expected_model_bundle_sha256=arguments.expected_model_bundle_sha256,
+        expected_calibration_artifact_sha256=arguments.expected_calibration_sha256,
+    )
+    print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
 
 
 def run(argv: Sequence[str]) -> None:
