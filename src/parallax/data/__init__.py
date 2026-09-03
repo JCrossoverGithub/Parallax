@@ -1,5 +1,10 @@
 """Dataset contracts and ingestion helpers for Parallax."""
 
+from parallax.data.flows import (
+    BidirectionalFlow,
+    FlowConstructionError,
+    group_bidirectional_flows,
+)
 from parallax.data.inspection import (
     VerifiedVnatDataframe,
     VnatDatasetError,
@@ -86,6 +91,7 @@ __all__ = [
     "WINDOW_SCHEMA_VERSION",
     "WINDOW_SECONDS",
     "Application",
+    "BidirectionalFlow",
     "CaptureAssignment",
     "CaptureGroup",
     "CaptureMetadata",
@@ -94,6 +100,7 @@ __all__ = [
     "CaptureSplitResult",
     "ConnectionKey",
     "DatasetPartition",
+    "FlowConstructionError",
     "ObservationWindow",
     "PacketMetadata",
     "PacketSizePolicy",
@@ -114,6 +121,7 @@ __all__ = [
     "assign_capture_splits",
     "export_vnat_windows",
     "extract_capture_windows",
+    "group_bidirectional_flows",
     "inspect_raw_dataframe",
     "inspect_vnat_file",
     "iter_pcap_packet_metadata",
