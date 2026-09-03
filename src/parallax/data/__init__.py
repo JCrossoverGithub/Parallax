@@ -23,6 +23,7 @@ from parallax.data.pcap import (
     PcapReadError,
     iter_pcap_packet_metadata,
 )
+from parallax.data.pcap_windowing import extract_vnat_pcap_windows
 from parallax.data.splitting import (
     CAPTURE_SPLIT_SCHEMA_VERSION,
     DATASET_PARTITIONS,
@@ -121,6 +122,7 @@ __all__ = [
     "assign_capture_splits",
     "export_vnat_windows",
     "extract_capture_windows",
+    "extract_vnat_pcap_windows",
     "group_bidirectional_flows",
     "inspect_raw_dataframe",
     "inspect_vnat_file",
