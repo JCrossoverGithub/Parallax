@@ -7,6 +7,7 @@ import dpkt  # type: ignore[import-untyped]
 import pytest
 
 from parallax.data import (
+    IP_PROTOCOL_ICMP,
     IP_PROTOCOL_TCP,
     IP_PROTOCOL_UDP,
     PCAP_LINKTYPE_RAW_IP,
@@ -44,6 +45,12 @@ def _ipv4_packet(
             data=payload,
         )
         transport.ulen = len(transport)
+    elif protocol == IP_PROTOCOL_ICMP:
+        transport = dpkt.icmp.ICMP(
+            type=dpkt.icmp.ICMP_UNREACH,
+            code=dpkt.icmp.ICMP_UNREACH_NET,
+            data=payload,
+        )
     else:
         transport = payload
 
@@ -125,6 +132,35 @@ def test_can_retain_full_ipv4_length_for_udp(tmp_path: Path) -> None:
     assert packet.size == len(udp)
 
 
+def test_reads_icmp_with_zero_ports_and_full_ipv4_length(tmp_path: Path) -> None:
+    source = tmp_path / "icmp.pcap"
+    icmp = _ipv4_packet(
+        protocol=IP_PROTOCOL_ICMP,
+        source=DESTINATION,
+        destination=SOURCE,
+    )
+    _write_pcap(source, [(3.75, icmp)])
+
+    packet = next(iter_pcap_packet_metadata(source))
+
+    assert packet == PacketMetadata(
+        timestamp_seconds=3.75,
+        source_address=DESTINATION,
+        source_port=0,
+        destination_address=SOURCE,
+        destination_port=0,
+        protocol=IP_PROTOCOL_ICMP,
+        size=len(icmp),
+    )
+    assert packet.connection == (
+        DESTINATION,
+        0,
+        SOURCE,
+        0,
+        IP_PROTOCOL_ICMP,
+    )
+
+
 def test_rejects_invalid_size_policy(tmp_path: Path) -> None:
     with pytest.raises(TypeError, match="size_policy must be a PacketSizePolicy"):
         list(
@@ -171,7 +207,7 @@ def test_rejects_decreasing_timestamps(tmp_path: Path) -> None:
         (b"", "empty Raw-IP record"),
         (b"\x60" + b"\x00" * 39, "unsupported IP version"),
         (b"\x45", "malformed IPv4 packet"),
-        (_ipv4_packet(protocol=1), "unsupported IP transport protocol 1"),
+        (_ipv4_packet(protocol=2), "unsupported IP protocol 2"),
         (
             _ipv4_packet(more_fragments=True),
             "fragmented IPv4 packet is unsupported",

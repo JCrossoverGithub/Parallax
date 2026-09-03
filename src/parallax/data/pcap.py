@@ -12,9 +12,14 @@ import dpkt  # type: ignore[import-untyped]
 from parallax.data.windowing import ConnectionKey
 
 PCAP_LINKTYPE_RAW_IP: Final = 101
+IP_PROTOCOL_ICMP: Final = 1
 IP_PROTOCOL_TCP: Final = 6
 IP_PROTOCOL_UDP: Final = 17
-_SUPPORTED_TRANSPORT_PROTOCOLS: Final = (IP_PROTOCOL_TCP, IP_PROTOCOL_UDP)
+_SUPPORTED_IP_PROTOCOLS: Final = (
+    IP_PROTOCOL_ICMP,
+    IP_PROTOCOL_TCP,
+    IP_PROTOCOL_UDP,
+)
 
 
 class PcapReadError(ValueError):
@@ -123,13 +128,23 @@ def _parse_raw_ipv4_packet(
         raise PcapReadError(f"packet {packet_number}: fragmented IPv4 packet is unsupported")
 
     protocol = int(network_packet.p)
-    if protocol not in _SUPPORTED_TRANSPORT_PROTOCOLS:
-        raise PcapReadError(f"packet {packet_number}: unsupported IP transport protocol {protocol}")
+    if protocol not in _SUPPORTED_IP_PROTOCOLS:
+        raise PcapReadError(f"packet {packet_number}: unsupported IP protocol {protocol}")
 
     transport_packet = network_packet.data
-    expected_type = dpkt.tcp.TCP if protocol == IP_PROTOCOL_TCP else dpkt.udp.UDP
+    expected_type = {
+        IP_PROTOCOL_ICMP: dpkt.icmp.ICMP,
+        IP_PROTOCOL_TCP: dpkt.tcp.TCP,
+        IP_PROTOCOL_UDP: dpkt.udp.UDP,
+    }[protocol]
     if not isinstance(transport_packet, expected_type):
         raise PcapReadError(f"packet {packet_number}: malformed transport header")
+
+    source_port = 0
+    destination_port = 0
+    if protocol != IP_PROTOCOL_ICMP:
+        source_port = int(transport_packet.sport)
+        destination_port = int(transport_packet.dport)
 
     # VNAT release 1 records UDP datagram length without its IPv4 header while
     # retaining full IPv4 length for TCP. Preserve that asymmetry only when
@@ -141,9 +156,9 @@ def _parse_raw_ipv4_packet(
     return PacketMetadata(
         timestamp_seconds=timestamp,
         source_address=inet_ntop(AF_INET, network_packet.src),
-        source_port=int(transport_packet.sport),
+        source_port=source_port,
         destination_address=inet_ntop(AF_INET, network_packet.dst),
-        destination_port=int(transport_packet.dport),
+        destination_port=destination_port,
         protocol=protocol,
         size=selected_size,
     )

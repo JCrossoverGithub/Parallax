@@ -15,6 +15,7 @@ from parallax.data.inspection import (
     load_verified_vnat_dataframe,
 )
 from parallax.data.pcap import (
+    IP_PROTOCOL_ICMP,
     IP_PROTOCOL_TCP,
     IP_PROTOCOL_UDP,
     PCAP_LINKTYPE_RAW_IP,
@@ -80,6 +81,7 @@ __all__ = [
     "FEATURE_LABEL_COLUMN",
     "FEATURE_RELEASE_1_SHA256",
     "FEATURE_RELEASE_1_SIZE_BYTES",
+    "IP_PROTOCOL_ICMP",
     "IP_PROTOCOL_TCP",
     "IP_PROTOCOL_UDP",
     "MIN_PACKETS_PER_WINDOW",
