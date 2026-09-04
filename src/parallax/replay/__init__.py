@@ -7,6 +7,11 @@ from parallax.replay.clock import (
     iter_paced_replay_schedule,
     wait_until_replay_offset,
 )
+from parallax.replay.control import (
+    ReplayControl,
+    ReplayControlError,
+    ReplayControlState,
+)
 from parallax.replay.domain import (
     ReplayConfiguration,
     ReplayDomainError,
@@ -31,6 +36,9 @@ __all__ = [
     "ReplayClock",
     "ReplayClockError",
     "ReplayConfiguration",
+    "ReplayControl",
+    "ReplayControlError",
+    "ReplayControlState",
     "ReplayDomainError",
     "ReplayEntryHandler",
     "ReplayFailure",
