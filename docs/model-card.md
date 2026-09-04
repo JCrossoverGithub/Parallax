@@ -127,6 +127,10 @@ bindings, schema versions, ordered feature names, feature dimension, finite valu
 order before scoring. It must report confidence and OOD score independently and preserve the
 active artifact identities with every prediction.
 
-Operational activation also requires raw-PCAP feature parity, bounded inference measurements,
-failure-mode testing, and clear UI communication of the model's limitations. Those requirements
-are not yet satisfied.
+Selected-capture raw-PCAP feature parity is now satisfied: exact offline/runtime 129-feature
+agreement was demonstrated on eligible SSH and VoIP VNAT windows. Exact raw flow reconstruction
+across the acceptance captures also covered TCP, UDP, and ICMP metadata; the VoIP capture's 404
+ICMP packets did not themselves produce eligible feature windows. Operational activation still
+requires checksum-verified model and calibration artifacts at runtime, bounded inference
+measurements, deterministic replay behavior, failure-mode testing, and clear UI communication of
+the model's limitations.

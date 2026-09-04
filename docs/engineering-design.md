@@ -759,16 +759,30 @@ experiment is separately frozen and executed.
 
 ### Milestone 3: Raw PCAP pipeline
 
-Deliverables:
+Status: engineering complete; selected-capture parity demonstrated.
 
-- PCAP parser
-- Flow/window engine
-- Runtime feature construction
-- Golden parity fixtures
+Completed deliverables:
+
+- Strict classic Raw-IP PCAP parser for supported IPv4 ICMP, TCP, and UDP traffic
+- Release-compatible and corrected packet-size policies
+- Deterministic bidirectional flow construction
+- Adapter into the shared capture-aligned window engine
+- Immutable runtime 129-feature construction
+- Synthetic golden fixtures
+- Exact real-PCAP flow, window, and feature parity on selected SSH and VoIP training captures
+
+The selected SSH capture produced 117 exact flows and five exact eligible feature vectors. The
+selected VoIP capture produced 108 exact flows, including two ICMP flows containing 404 ICMP
+packets, and 45 exact eligible UDP feature vectors. Maximum feature difference was `0.0` for both
+acceptance captures.
+
+The current path is intentionally batch-oriented. It materializes capture flow metadata before
+window and feature extraction and must not be described as timed replay, bounded streaming, or
+live capture.
 
 Exit criteria:
 
-- Selected raw PCAP windows produce feature vectors consistent with the offline pipeline.
+- Selected raw PCAP windows produce feature vectors consistent with the offline pipeline. Satisfied.
 
 ### Milestone 4: Replayable runtime
 
@@ -880,7 +894,7 @@ The following initial decisions should be recorded as individual ADRs when the r
 | OQ-003 | Resolved: accepted source identities and checksums are versioned in the VNAT release manifest. | Milestone 1 |
 | OQ-004 | Should MLflow remain a development-only service or ship in the demonstration stack? | Milestone 2 |
 | OQ-005 | Partially resolved: 0.95 and 0.99 are frozen reference thresholds; comparative application-held-out evidence remains future work. | Separate OOD study |
-| OQ-006 | Can raw PCAP-derived features reproduce the supplied feature DataFrame closely enough for model reuse? | Milestone 3 |
+| OQ-006 | Resolved: selected SSH and VoIP raw PCAPs reproduce offline flow, window, and 129-feature records exactly under the release-compatible contracts. | Milestone 3 |
 | OQ-007 | Should runtime feature vectors be retained for public demo sessions? | Milestone 4 security review |
 | OQ-008 | Is WebSocket replay sufficient, or is a replayable server-sent event stream simpler for the final UI? | Milestone 4 |
 | OQ-009 | What Windows capture mechanism provides the cleanest least-privilege boundary? | Milestone 6 |
@@ -919,10 +933,14 @@ The final as-built report should clearly separate measured results from planned 
 
 ## 25. Immediate Next Step
 
-Begin Milestone 3 by downloading and verifying selected VNAT PCAP captures, then implement the
-bidirectional flow/window path and golden feature-parity fixtures. The frozen model artifacts must
-not be changed to accommodate runtime discrepancies; mismatches belong in the PCAP or feature
-pipeline until independently explained.
+Close Milestone 3 by publishing its PCAP provenance and parity evidence, passing the aggregate
+branch quality gate, and merging the raw-PCAP feature branch. Then begin Milestone 4 with the
+replay-session identity, state-machine, configuration, timing, and terminal-error contracts before
+adding infrastructure dependencies.
+
+The operational replay path must be incremental and bounded rather than relying on whole-capture
+materialization. The existing batch PCAP implementation remains the parity oracle. The frozen
+model and calibration artifacts must not be changed to accommodate runtime discrepancies.
 
 ---
 
@@ -933,3 +951,4 @@ pipeline until independently explained.
 | 0.1 | 2026-08-18 | Initial project definition, architecture, requirements, evaluation plan, security boundaries, milestones, and acceptance criteria |
 | 0.2 | 2026-08-18 | Adopted Parallax as the permanent project and repository name |
 | 0.3 | 2026-08-23 | Recorded the implemented baseline, frozen prototype, calibration-only OOD workflow, one-shot test evidence, and Milestone 3 handoff |
+| 0.4 | 2026-09-03 | Recorded raw-PCAP provenance, ICMP and UDP compatibility behavior, exact selected-capture feature parity, Milestone 3 completion, and Milestone 4 handoff |

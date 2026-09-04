@@ -13,10 +13,13 @@ representation, versioned Parquet exports, deterministic capture-grouped partiti
 quality gates, a manifest-bound modeling loader, deterministic reference baselines, and a frozen
 prototypical embedding model with relative-Mahalanobis OOD calibration. The candidate completed
 one checksum-bound test evaluation after its model, calibration, thresholds, and reporting policy
-were frozen. Raw PCAP replay, runtime inference, and a live monitoring capability are not yet
-implemented.
+were frozen. Raw-PCAP ingestion, deterministic bidirectional flow reconstruction, shared
+capture-aligned windowing, and runtime feature construction are now implemented and have exact
+feature parity on selected VNAT captures. Timed replay, runtime inference, persistence, event
+delivery, the operations dashboard, and live monitoring are not yet implemented.
 
-The first operational target is a deterministic replay pipeline:
+The raw-PCAP feature path now reaches release-compatible feature vectors. The next operational
+target extends that verified path into a deterministic replay pipeline:
 
 ```text
 VNAT PCAP -> bidirectional flows -> observation windows -> features

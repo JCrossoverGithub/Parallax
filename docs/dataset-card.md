@@ -4,12 +4,14 @@
 
 VNAT release 1 was independently downloaded, checksummed, structurally inspected,
 deterministically windowed, and exported by Parallax on 18 August 2026. Its 129-feature
-representation was independently implemented and exported on 19 August 2026. The PCAP archive
-has not yet been downloaded or validated. The primary capture-grouped model-development split was
-generated and accepted on 21 August 2026. Initial majority-class and balanced logistic-regression
-baselines were subsequently evaluated on the capture-held-out validation partition. A frozen
-prototype candidate was selected on validation, fitted with OOD densities on calibration, and
-evaluated once on the capture-held-out test partition on 23 August 2026.
+representation was independently implemented and exported on 19 August 2026. The primary
+capture-grouped model-development split was generated and accepted on 21 August 2026. Initial
+majority-class and balanced logistic-regression baselines were subsequently evaluated on the
+capture-held-out validation partition. A frozen prototype candidate was selected on validation,
+fitted with OOD densities on calibration, and evaluated once on the capture-held-out test
+partition on 23 August 2026. The full VNAT PCAP archive was subsequently downloaded and assigned
+a local SHA-256 identity, and selected SSH and VoIP training captures passed exact raw-PCAP flow,
+window, and 129-feature parity acceptance on 3 September 2026.
 
 ## Source and version
 
@@ -23,6 +25,34 @@ evaluated once on the capture-held-out test partition on 23 August 2026.
 | --- | ---: | --- |
 | `VNAT_Dataframe_release_1.h5` | 1,045,436,008 | `5d0c3d76cd292f19e25b5229719264bc1ddd71920a20bb27a7dec6c7138914de` |
 | `VNAT_Feature_Dataframe_release_1.h5` | 9,005,973 | `9e435b50743bec6eed288e9707878f624861dcdd7700165955e2509fa47d0f30` |
+| `VNAT_release_1.zip` | 34,523,209,689 | `42388ec5821bd1d9c9d0cad437160476e9f521d2e49f7c5573377b085705c883` |
+
+The PCAP archive digest above is the locally calculated identity of the archive used by Parallax.
+No independently authenticated publisher checksum has been recorded for that archive.
+
+### Selected raw-PCAP acceptance captures
+
+| Capture | Partition | Size (bytes) | SHA-256 |
+| --- | --- | ---: | --- |
+| `nonvpn_ssh_capture4.pcap` | Training | 100,261 | `770e2eb1b17c717084e8bd96cc6a5c27a93918e7272db5fd253dee6282b73f91` |
+| `nonvpn_voip_capture2.pcap` | Training | 10,742,119 | `46fc6a1b79bc7418183bfdbe88ba18b928e99a399121a2c0db3ce70c03796174` |
+
+For `nonvpn_ssh_capture4.pcap`, Parallax parsed 626 PCAP records, reconstructed all 117 HDF5
+connections exactly, produced five eligible windows, and reproduced all five offline 129-feature
+vectors exactly with maximum feature difference `0.0`.
+
+For `nonvpn_voip_capture2.pcap`, Parallax parsed 119,103 PCAP records comprising 118,699 UDP and
+404 ICMP packets, reconstructed all 108 HDF5 connections exactly, and reproduced all 45 eligible
+UDP-window feature vectors exactly with maximum feature difference `0.0`. VNAT represents these
+ICMP connections with source port `0`, destination port `0`, and IP protocol `1`.
+
+Release-compatible PCAP parsing preserves the publisher-observed UDP sizing convention: UDP uses
+the UDP datagram length while TCP and ICMP retain the full IPv4 packet length. An explicit
+corrected packet-size policy remains available for separately identified future experiments.
+
+These results establish selected-capture parity for the batch PCAP-to-feature path. They do not
+constitute timed replay, bounded incremental stream processing, runtime model inference, or live
+capture.
 
 ## Parallax validation
 
@@ -315,7 +345,8 @@ in [VNAT Prototype and Uncertainty Evaluation](uncertainty-modeling.md).
 
 ## Remaining data work
 
-- Download and verify selected PCAP captures for replay acceptance tests.
 - Investigate the two-window difference between release-compatible extraction and the released
   feature dataframe.
 - Preserve a separate randomized-window manifest only for comparison with the publication.
+- Add further raw-PCAP acceptance captures only when they answer a specific compatibility or
+  robustness question rather than expanding the test matrix without a defined purpose.
