@@ -6,6 +6,7 @@ import pytest
 from parallax.replay import (
     ReplayConfiguration,
     ReplayDomainError,
+    ReplayScheduleBuilder,
     ReplayScheduleEntry,
     ReplayTimingError,
     iter_replay_schedule,
@@ -124,3 +125,38 @@ def test_schedule_generation_is_lazy() -> None:
 
     with pytest.raises(RuntimeError, match="later timestamp requested"):
         next(schedule)
+
+
+def test_schedule_builder_matches_iterator_behavior() -> None:
+    builder = ReplayScheduleBuilder(configuration=ReplayConfiguration(time_scale=2.0))
+
+    entries = [
+        builder.schedule(100.0),
+        builder.schedule(102.0),
+        builder.schedule(105.5),
+    ]
+
+    assert entries == list(
+        iter_replay_schedule(
+            [100.0, 102.0, 105.5],
+            configuration=ReplayConfiguration(time_scale=2.0),
+        )
+    )
+
+
+def test_schedule_builder_does_not_advance_after_invalid_timestamp() -> None:
+    builder = ReplayScheduleBuilder()
+
+    first = builder.schedule(10.0)
+
+    with pytest.raises(
+        ReplayTimingError,
+        match="packet 2: source timestamp precedes the previous packet",
+    ):
+        builder.schedule(9.0)
+
+    second = builder.schedule(11.0)
+
+    assert first.packet_number == 1
+    assert second.packet_number == 2
+    assert second.source_offset_seconds == 1.0
