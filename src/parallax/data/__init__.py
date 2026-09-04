@@ -1,5 +1,10 @@
 """Dataset contracts and ingestion helpers for Parallax."""
 
+from parallax.data.flows import (
+    BidirectionalFlow,
+    FlowConstructionError,
+    group_bidirectional_flows,
+)
 from parallax.data.inspection import (
     VerifiedVnatDataframe,
     VnatDatasetError,
@@ -9,6 +14,17 @@ from parallax.data.inspection import (
     inspect_vnat_file,
     load_verified_vnat_dataframe,
 )
+from parallax.data.pcap import (
+    IP_PROTOCOL_ICMP,
+    IP_PROTOCOL_TCP,
+    IP_PROTOCOL_UDP,
+    PCAP_LINKTYPE_RAW_IP,
+    PacketMetadata,
+    PacketSizePolicy,
+    PcapReadError,
+    iter_pcap_packet_metadata,
+)
+from parallax.data.pcap_windowing import extract_vnat_pcap_windows
 from parallax.data.splitting import (
     CAPTURE_SPLIT_SCHEMA_VERSION,
     DATASET_PARTITIONS,
@@ -65,7 +81,11 @@ __all__ = [
     "FEATURE_LABEL_COLUMN",
     "FEATURE_RELEASE_1_SHA256",
     "FEATURE_RELEASE_1_SIZE_BYTES",
+    "IP_PROTOCOL_ICMP",
+    "IP_PROTOCOL_TCP",
+    "IP_PROTOCOL_UDP",
     "MIN_PACKETS_PER_WINDOW",
+    "PCAP_LINKTYPE_RAW_IP",
     "RAW_COLUMNS",
     "RAW_RELEASE_1_SHA256",
     "RAW_RELEASE_1_SIZE_BYTES",
@@ -74,6 +94,7 @@ __all__ = [
     "WINDOW_SCHEMA_VERSION",
     "WINDOW_SECONDS",
     "Application",
+    "BidirectionalFlow",
     "CaptureAssignment",
     "CaptureGroup",
     "CaptureMetadata",
@@ -82,7 +103,11 @@ __all__ = [
     "CaptureSplitResult",
     "ConnectionKey",
     "DatasetPartition",
+    "FlowConstructionError",
     "ObservationWindow",
+    "PacketMetadata",
+    "PacketSizePolicy",
+    "PcapReadError",
     "TrafficCategory",
     "VerifiedVnatDataframe",
     "VnatDatasetError",
@@ -99,8 +124,11 @@ __all__ = [
     "assign_capture_splits",
     "export_vnat_windows",
     "extract_capture_windows",
+    "extract_vnat_pcap_windows",
+    "group_bidirectional_flows",
     "inspect_raw_dataframe",
     "inspect_vnat_file",
+    "iter_pcap_packet_metadata",
     "load_verified_vnat_dataframe",
     "parse_capture_filename",
     "validate_capture_assignments",

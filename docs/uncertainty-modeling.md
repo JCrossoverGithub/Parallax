@@ -229,7 +229,11 @@ that the model detects unseen applications or categories.
 
 ## Next stage
 
-Milestone 3 begins with verified raw PCAP ingestion, deterministic bidirectional flow and window
-construction, and golden parity between offline and runtime feature generation. OOD detection
-power requires a separately pre-registered application-held-out or external-dataset experiment;
-it is not inferred from the known-traffic test result.
+Milestone 3 raw-PCAP ingestion, deterministic bidirectional flow construction, shared windowing,
+and selected-capture offline/runtime feature parity are complete. Milestone 4 will build timed
+replay as a bounded incremental operational path while retaining the current batch implementation
+as the parity oracle, then connect checksum-verified model inference, persistence, and ordered
+events.
+
+OOD detection power requires a separately pre-registered application-held-out or external-dataset
+experiment; it is not inferred from the known-traffic test result.

@@ -24,6 +24,48 @@
       "hdf_key": "/data",
       "rows": 33711,
       "columns": 5
-    }
+    },
+    "pcap_archive": {
+      "filename": "VNAT_release_1.zip",
+      "size_bytes": 34523209689,
+      "sha256": "42388ec5821bd1d9c9d0cad437160476e9f521d2e49f7c5573377b085705c883",
+      "checksum_provenance": "Locally calculated download identity; no independently authenticated publisher checksum is recorded.",
+      "identified_on": "2026-09-03"
+    },
+    "selected_pcaps": [
+      {
+        "filename": "nonvpn_ssh_capture4.pcap",
+        "partition": "training",
+        "size_bytes": 100261,
+        "sha256": "770e2eb1b17c717084e8bd96cc6a5c27a93918e7272db5fd253dee6282b73f91",
+        "validated_on": "2026-09-03",
+        "acceptance": {
+          "pcap_records": 626,
+          "hdf5_connections": 117,
+          "exact_flows": 117,
+          "eligible_windows": 5,
+          "exact_feature_vectors": 5,
+          "maximum_feature_difference": 0.0
+        }
+      },
+      {
+        "filename": "nonvpn_voip_capture2.pcap",
+        "partition": "training",
+        "size_bytes": 10742119,
+        "sha256": "46fc6a1b79bc7418183bfdbe88ba18b928e99a399121a2c0db3ce70c03796174",
+        "validated_on": "2026-09-03",
+        "acceptance": {
+          "pcap_records": 119103,
+          "udp_packets": 118699,
+          "icmp_packets": 404,
+          "hdf5_connections": 108,
+          "exact_flows": 108,
+          "eligible_windows": 45,
+          "eligible_window_protocol": "UDP",
+          "exact_feature_vectors": 45,
+          "maximum_feature_difference": 0.0
+        }
+      }
+    ]
   }
 }

@@ -13,6 +13,30 @@ VNAT release 1 metadata is tracked in
 [`manifests/vnat-release-1.json`](manifests/vnat-release-1.json). Downloaded HDF5 and PCAP files
 belong under `data/raw/vnat/` and remain excluded from version control.
 
+The downloaded `VNAT_release_1.zip` PCAP archive is 34,523,209,689 bytes and has locally
+calculated SHA-256
+`42388ec5821bd1d9c9d0cad437160476e9f521d2e49f7c5573377b085705c883`.
+This digest records the exact local archive used by Parallax; it is not presented as an
+independently publisher-authenticated checksum.
+
+Two training captures are retained locally under `data/raw/vnat/selected-pcaps/` as Milestone 3
+acceptance inputs:
+
+| Capture | Size (bytes) | SHA-256 |
+| --- | ---: | --- |
+| `nonvpn_ssh_capture4.pcap` | 100,261 | `770e2eb1b17c717084e8bd96cc6a5c27a93918e7272db5fd253dee6282b73f91` |
+| `nonvpn_voip_capture2.pcap` | 10,742,119 | `46fc6a1b79bc7418183bfdbe88ba18b928e99a399121a2c0db3ce70c03796174` |
+
+The SSH capture reconstructs all 117 HDF5 connections exactly and produces five eligible windows
+whose 129-feature vectors match the offline feature path exactly. The VoIP capture reconstructs
+all 108 HDF5 connections exactly, including 404 ICMP packets represented with zero transport
+ports, and produces 45 eligible UDP windows whose feature vectors also match exactly. The maximum
+observed feature difference for both acceptance captures is `0.0`.
+
+These checks establish selected-capture raw-PCAP feature parity. The current implementation is
+batch-oriented and does not provide wall-clock replay scheduling, pause/resume, cancellation,
+bounded incremental flow state, or live capture.
+
 Validate the raw dataframe with:
 
 ```bash
