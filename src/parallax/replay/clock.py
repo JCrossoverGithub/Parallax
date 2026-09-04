@@ -1,6 +1,6 @@
 """Clock-driven pacing primitives for deterministic replay schedules."""
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from enum import StrEnum
 from math import isfinite
@@ -129,6 +129,7 @@ def wait_until_controlled_replay_offset(
     clock: ReplayClock,
     control: ReplayControl,
     poll_interval_seconds: float = 0.1,
+    handle_control_state: Callable[[ReplayControlState], None] | None = None,
 ) -> ReplayWaitResult:
     """Wait responsively for one replay deadline while honoring pause and cancel.
 
@@ -144,6 +145,7 @@ def wait_until_controlled_replay_offset(
     paused_seconds = pacing_state.paused_seconds
     previous_now: float | None = None
     paused_at: float | None = None
+    observed_control_state = ReplayControlState.RUNNING
 
     while True:
         now = clock.monotonic()
@@ -157,6 +159,10 @@ def wait_until_controlled_replay_offset(
             paused_at = None
 
         control_state = control.state
+        if control_state is not observed_control_state:
+            if handle_control_state is not None:
+                handle_control_state(control_state)
+            observed_control_state = control_state
 
         if control_state is ReplayControlState.CANCELLED:
             return ReplayWaitResult(

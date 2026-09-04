@@ -230,3 +230,64 @@ def test_controlled_wait_rejects_nonfinite_deadline() -> None:
             clock=_ScriptedClock(now=1.0e308),
             control=ReplayControl(),
         )
+
+
+def test_controlled_wait_reports_pause_and_resume_transitions() -> None:
+    control = ReplayControl()
+    observed: list[str] = []
+
+    def on_sleep(call_number: int) -> None:
+        if call_number == 1:
+            control.pause()
+        elif call_number == 2:
+            control.resume()
+
+    clock = _ScriptedClock(now=100.0, on_sleep=on_sleep)
+
+    result = wait_until_controlled_replay_offset(
+        2.0,
+        pacing_state=ReplayPacingState(replay_started_at=100.0),
+        clock=clock,
+        control=control,
+        poll_interval_seconds=1.0,
+        handle_control_state=lambda state: observed.append(state.value),
+    )
+
+    assert result.outcome is ReplayWaitOutcome.DUE
+    assert observed == ["paused", "running"]
+
+
+def test_controlled_wait_reports_cancellation_once() -> None:
+    control = ReplayControl()
+    observed: list[str] = []
+
+    def on_sleep(_: int) -> None:
+        control.cancel()
+
+    result = wait_until_controlled_replay_offset(
+        100.0,
+        pacing_state=ReplayPacingState(replay_started_at=100.0),
+        clock=_ScriptedClock(now=100.0, on_sleep=on_sleep),
+        control=control,
+        poll_interval_seconds=0.25,
+        handle_control_state=lambda state: observed.append(state.value),
+    )
+
+    assert result.outcome is ReplayWaitOutcome.CANCELLED
+    assert observed == ["cancelled"]
+
+
+def test_controlled_wait_does_not_report_unchanged_running_state() -> None:
+    observed: list[str] = []
+
+    result = wait_until_controlled_replay_offset(
+        1.0,
+        pacing_state=ReplayPacingState(replay_started_at=100.0),
+        clock=_ScriptedClock(now=100.0),
+        control=ReplayControl(),
+        poll_interval_seconds=0.5,
+        handle_control_state=lambda state: observed.append(state.value),
+    )
+
+    assert result.outcome is ReplayWaitOutcome.DUE
+    assert observed == []
