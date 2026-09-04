@@ -17,7 +17,7 @@ from parallax.replay.domain import (
     ReplaySession,
     ReplayState,
 )
-from parallax.replay.timing import ReplayScheduleEntry
+from parallax.replay.timing import ReplayScheduleEntry, ReplayTimedEntry
 
 
 class ReplayRunnerError(ReplayDomainError):
@@ -63,11 +63,11 @@ def _failure_message(error: Exception) -> str:
 ReplaySessionHandler = Callable[[ReplaySession], None]
 
 
-def run_controlled_replay_schedule(
+def run_controlled_replay_schedule[ReplayTimedEntryT: ReplayTimedEntry](
     session: ReplaySession,
-    schedule: Iterable[ReplayScheduleEntry],
+    schedule: Iterable[ReplayTimedEntryT],
     *,
-    handle_entry: ReplayEntryHandler,
+    handle_entry: Callable[[ReplayTimedEntryT], None],
     control: ReplayControl,
     clock: ReplayClock | None = None,
     poll_interval_seconds: float = 0.1,

@@ -3,12 +3,21 @@
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from math import isfinite
+from typing import Protocol
 
 from parallax.replay.domain import ReplayConfiguration, ReplayDomainError
 
 
 class ReplayTimingError(ReplayDomainError):
     """Raised when source timestamps cannot form a deterministic replay schedule."""
+
+
+class ReplayTimedEntry(Protocol):
+    """Structural timing contract for an entry that can be replay-paced."""
+
+    @property
+    def scheduled_offset_seconds(self) -> float:
+        """Return the absolute wall-clock offset relative to replay start."""
 
 
 @dataclass(frozen=True, slots=True)

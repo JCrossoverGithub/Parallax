@@ -39,6 +39,7 @@ from parallax.replay.runner import (
 from parallax.replay.timing import (
     ReplayScheduleBuilder,
     ReplayScheduleEntry,
+    ReplayTimedEntry,
     ReplayTimingError,
     iter_replay_schedule,
 )
@@ -62,6 +63,7 @@ __all__ = [
     "ReplaySessionHandler",
     "ReplaySessionId",
     "ReplayState",
+    "ReplayTimedEntry",
     "ReplayTimingError",
     "ReplayWaitOutcome",
     "ReplayWaitResult",

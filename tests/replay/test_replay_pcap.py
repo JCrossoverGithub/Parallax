@@ -149,3 +149,63 @@ def test_pcap_replay_entries_propagate_missing_capture_error(
 ) -> None:
     with pytest.raises(PcapReadError, match="PCAP file does not exist"):
         list(iter_pcap_replay_entries(tmp_path / "missing.pcap"))
+
+
+def test_pcap_entries_run_directly_through_controlled_replay(
+    tmp_path: Path,
+) -> None:
+    from parallax.replay.control import ReplayControl
+    from parallax.replay.domain import (
+        ReplayConfiguration,
+        ReplaySession,
+        ReplaySessionId,
+        ReplayState,
+    )
+    from parallax.replay.runner import run_controlled_replay_schedule
+
+    class RecordingClock:
+        def __init__(self) -> None:
+            self.now = 50.0
+            self.sleeps: list[float] = []
+
+        def monotonic(self) -> float:
+            return self.now
+
+        def sleep(self, seconds: float) -> None:
+            self.sleeps.append(seconds)
+            self.now += seconds
+
+    source = tmp_path / "direct-replay.pcap"
+    _write_pcap(
+        source,
+        [
+            (100.0, _ipv4_packet(source_port=41_898)),
+            (102.0, _ipv4_packet(source_port=41_899)),
+        ],
+    )
+
+    configuration = ReplayConfiguration(time_scale=2.0)
+    replay_entries = iter_pcap_replay_entries(
+        source,
+        configuration=configuration,
+    )
+    handled_ports: list[int] = []
+    clock = RecordingClock()
+
+    result = run_controlled_replay_schedule(
+        ReplaySession(
+            session_id=ReplaySessionId.parse("4d524cee-1288-45d7-9c6f-fdbab196bb26"),
+            source_id=source.name,
+            source_sha256="a" * 64,
+            configuration=configuration,
+        ),
+        replay_entries,
+        handle_entry=lambda entry: handled_ports.append(entry.packet.source_port),
+        control=ReplayControl(),
+        clock=clock,
+        poll_interval_seconds=0.25,
+    )
+
+    assert result.state is ReplayState.COMPLETED
+    assert handled_ports == [41_898, 41_899]
+    assert sum(clock.sleeps) == pytest.approx(1.0)

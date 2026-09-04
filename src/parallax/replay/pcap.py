@@ -20,6 +20,11 @@ class ReplayPacketEntry:
     schedule: ReplayScheduleEntry
     packet: PacketMetadata
 
+    @property
+    def scheduled_offset_seconds(self) -> float:
+        """Return the embedded schedule's absolute replay offset."""
+        return self.schedule.scheduled_offset_seconds
+
 
 def iter_pcap_replay_entries(
     source: str | Path,
