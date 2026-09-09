@@ -362,6 +362,40 @@ describe('OperatorApi live sensor', () => {
     });
   });
 
+  it('loads the active live sensor session', () => {
+    api.getActiveLive().subscribe((response) => {
+      expect(response?.run_id).toBe('live-001');
+      expect(response?.state).toBe('running');
+    });
+
+    const request = http.expectOne('/api/v1/live/active');
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      run_id: 'live-001',
+      state: 'running',
+      configuration: {
+        interface: 'eth0',
+        stale_after_seconds: 120,
+        max_tracked_flows: 4096,
+      },
+      failure: null,
+    });
+  });
+
+  it('returns null when there is no active live session', () => {
+    api.getActiveLive().subscribe((response) => {
+      expect(response).toBeNull();
+    });
+
+    const request = http.expectOne('/api/v1/live/active');
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush(null);
+  });
+
   it('starts a live sensor session', () => {
     api
       .startLive({
@@ -420,6 +454,8 @@ describe('OperatorApi live sensor', () => {
     request.flush({
       run_id: 'live 001',
       events: [],
+      last_sequence: 0,
+      state: 'running',
     });
   });
 
@@ -460,6 +496,24 @@ describe('OperatorApi live sensor', () => {
     source?.emit('prediction', PREDICTION);
 
     expect(prediction).toHaveBeenCalledWith(PREDICTION);
+  });
+
+  it('resumes live SSE after a retained event cursor', () => {
+    api.openLiveStream(
+      'live 001',
+      {
+        prediction: vi.fn(),
+        terminal: vi.fn(),
+        streamError: vi.fn(),
+        connectionError: vi.fn(),
+      },
+      27,
+    );
+
+    const source = FakeEventSource.instances.at(-1);
+
+    expect(source).toBeDefined();
+    expect(source?.url).toBe('/api/v1/live/live%20001/stream?after=27');
   });
 
   it('delivers live terminal events and closes SSE', () => {

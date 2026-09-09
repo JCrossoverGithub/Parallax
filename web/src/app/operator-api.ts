@@ -45,6 +45,10 @@ export class OperatorApi {
     return this.http.get<LiveInterfacesResponse>('/api/v1/live/interfaces');
   }
 
+  getActiveLive(): Observable<LiveSessionSnapshot | null> {
+    return this.http.get<LiveSessionSnapshot | null>('/api/v1/live/active');
+  }
+
   startLive(request: StartLiveRequest): Observable<LiveSessionSnapshot> {
     return this.http.post<LiveSessionSnapshot>('/api/v1/live', request);
   }
@@ -64,9 +68,11 @@ export class OperatorApi {
     );
   }
 
-  openLiveStream(runId: string, handlers: LiveStreamHandlers): EventSource {
+  openLiveStream(runId: string, handlers: LiveStreamHandlers, afterSequence = 0): EventSource {
+    const cursor = afterSequence > 0 ? `?after=${afterSequence}` : '';
+
     return this.openStream(
-      `/api/v1/live/${encodeURIComponent(runId)}/stream`,
+      `/api/v1/live/${encodeURIComponent(runId)}/stream${cursor}`,
       'live-terminal',
       handlers,
     );

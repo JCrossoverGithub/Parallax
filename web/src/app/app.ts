@@ -178,6 +178,7 @@ export class App implements OnDestroy {
     this.loadHealth();
     this.loadHistory();
     this.loadLiveInterfaces();
+    this.recoverActiveLive();
   }
 
   ngOnDestroy(): void {
@@ -236,6 +237,54 @@ export class App implements OnDestroy {
       },
       error: () => {
         this.error.set('Unable to load replay history.');
+      },
+    });
+  }
+
+  recoverActiveLive(): void {
+    this.api.getActiveLive().subscribe({
+      next: (session) => {
+        if (session === null) {
+          return;
+        }
+
+        this.workspace.set('live');
+        this.live.set(session);
+        this.liveInterface = session.configuration.interface;
+
+        this.closeStream();
+        this.stopPolling();
+
+        this.api.getLiveEvents(session.run_id).subscribe({
+          next: (snapshot) => {
+            this.livePredictions.set(snapshot.events);
+
+            this.live.update((current) => {
+              if (current === null) {
+                return null;
+              }
+
+              return {
+                ...current,
+                state: snapshot.state,
+              };
+            });
+
+            this.connectLiveStream(session.run_id, snapshot.last_sequence);
+
+            if (snapshot.state === 'starting') {
+              this.startLivePolling(session.run_id);
+            }
+          },
+
+          error: (response) => {
+            this.error.set(response?.error?.detail ?? 'Unable to restore live sensor events.');
+          },
+        });
+      },
+
+      error: (response) => {
+        this.error.set(response?.error?.detail ?? 'Unable to recover active live sensor.');
       },
     });
   }
@@ -479,45 +528,49 @@ export class App implements OnDestroy {
     });
   }
 
-  private connectLiveStream(runId: string): void {
-    this.eventSource = this.api.openLiveStream(runId, {
-      prediction: (event) => {
-        this.streamConnected.set(true);
+  private connectLiveStream(runId: string, afterSequence = 0): void {
+    this.eventSource = this.api.openLiveStream(
+      runId,
+      {
+        prediction: (event) => {
+          this.streamConnected.set(true);
 
-        this.livePredictions.update((current) => [...current, event]);
-      },
+          this.livePredictions.update((current) => [...current, event]);
+        },
 
-      terminal: (event) => {
-        this.streamConnected.set(false);
-
-        this.live.update((session) => {
-          if (session === null) {
-            return null;
-          }
-
-          return {
-            ...session,
-            state: event.state,
-          };
-        });
-
-        this.stopPolling();
-        this.loadHealth();
-      },
-
-      streamError: (detail) => {
-        this.streamConnected.set(false);
-        this.error.set(detail);
-      },
-
-      connectionError: () => {
-        const state = this.live()?.state;
-
-        if (state !== 'completed' && state !== 'failed') {
+        terminal: (event) => {
           this.streamConnected.set(false);
-        }
+
+          this.live.update((session) => {
+            if (session === null) {
+              return null;
+            }
+
+            return {
+              ...session,
+              state: event.state,
+            };
+          });
+
+          this.stopPolling();
+          this.loadHealth();
+        },
+
+        streamError: (detail) => {
+          this.streamConnected.set(false);
+          this.error.set(detail);
+        },
+
+        connectionError: () => {
+          const state = this.live()?.state;
+
+          if (state !== 'completed' && state !== 'failed') {
+            this.streamConnected.set(false);
+          }
+        },
       },
-    });
+      afterSequence,
+    );
   }
 
   private startReplayPolling(runId: string): void {
@@ -550,7 +603,11 @@ export class App implements OnDestroy {
       next: (session) => {
         this.live.set(session);
 
-        if (session.state === 'completed' || session.state === 'failed') {
+        if (
+          session.state === 'running' ||
+          session.state === 'completed' ||
+          session.state === 'failed'
+        ) {
           this.stopPolling();
         }
       },

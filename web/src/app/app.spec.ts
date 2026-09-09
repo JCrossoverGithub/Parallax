@@ -6,6 +6,7 @@ import { App } from './app';
 import { LiveStreamHandlers, OperatorApi, ReplayStreamHandlers } from './operator-api';
 import {
   HealthResponse,
+  LiveEventsResponse,
   LiveInterfacesResponse,
   LiveSessionSnapshot,
   ReplayHistoryResponse,
@@ -140,14 +141,18 @@ class FakeOperatorApi {
     }),
   );
 
+  readonly getActiveLive = vi.fn(() => of<LiveSessionSnapshot | null>(null));
+
   readonly startLive = vi.fn(() => of(LIVE_STARTING));
 
   readonly getLive = vi.fn(() => of(LIVE_RUNNING));
 
-  readonly getLiveEvents = vi.fn((runId: string) =>
+  readonly getLiveEvents = vi.fn((runId: string): Observable<LiveEventsResponse> =>
     of({
       run_id: runId,
       events: [],
+      last_sequence: 0,
+      state: 'running',
     }),
   );
 
@@ -200,11 +205,13 @@ class FakeOperatorApi {
     close: vi.fn(),
   };
 
-  readonly openLiveStream = vi.fn((_runId: string, handlers: LiveStreamHandlers): EventSource => {
-    this.liveHandlers = handlers;
+  readonly openLiveStream = vi.fn(
+    (_runId: string, handlers: LiveStreamHandlers, _afterSequence = 0): EventSource => {
+      this.liveHandlers = handlers;
 
-    return this.liveSource as unknown as EventSource;
-  });
+      return this.liveSource as unknown as EventSource;
+    },
+  );
 
   readonly openReplayStream = vi.fn(
     (_runId: string, handlers: ReplayStreamHandlers): EventSource => {
@@ -684,5 +691,100 @@ describe('App', () => {
     component.selectWorkspace('replay');
 
     expect(component.selectedPrediction()).toBeNull();
+  });
+
+  it('checks for an active live session on startup', () => {
+    expect(api.getActiveLive).toHaveBeenCalledOnce();
+  });
+
+  it('restores an active live session and retained events', () => {
+    const livePrediction: RuntimePredictionEvent = {
+      ...PREDICTION,
+      run_id: 'live-001',
+      window: {
+        ...PREDICTION.window,
+        capture_id: 'live:eth0:live-001',
+      },
+    };
+
+    api.getActiveLive.mockReturnValue(of(LIVE_RUNNING));
+
+    api.getLiveEvents.mockReturnValue(
+      of({
+        run_id: 'live-001',
+        events: [livePrediction],
+        last_sequence: 7,
+        state: 'running' as const,
+      }),
+    );
+
+    api.openLiveStream.mockClear();
+
+    component.recoverActiveLive();
+
+    expect(component.workspace()).toBe('live');
+    expect(component.live()).toEqual(LIVE_RUNNING);
+    expect(component.liveInterface).toBe('eth0');
+    expect(component.livePredictions()).toEqual([livePrediction]);
+
+    expect(api.getLiveEvents).toHaveBeenCalledWith('live-001');
+
+    expect(api.openLiveStream).toHaveBeenCalledWith('live-001', expect.any(Object), 7);
+  });
+
+  it('does not reconnect when no active live session exists', () => {
+    api.getActiveLive.mockReturnValue(of(null));
+
+    api.openLiveStream.mockClear();
+
+    component.recoverActiveLive();
+
+    expect(api.openLiveStream).not.toHaveBeenCalled();
+  });
+
+  it('surfaces active live recovery failures', () => {
+    api.getActiveLive.mockReturnValue(
+      throwError(() => ({
+        error: {
+          detail: 'active session lookup failed',
+        },
+      })),
+    );
+
+    component.recoverActiveLive();
+
+    expect(component.error()).toBe('active session lookup failed');
+  });
+
+  it('surfaces retained live event recovery failures', () => {
+    api.getActiveLive.mockReturnValue(of(LIVE_RUNNING));
+
+    api.getLiveEvents.mockReturnValue(
+      throwError(() => ({
+        error: {
+          detail: 'live events unavailable',
+        },
+      })),
+    );
+
+    component.recoverActiveLive();
+
+    expect(component.error()).toBe('live events unavailable');
+  });
+
+  it('stops startup polling once live reaches running', () => {
+    api.getLive.mockReturnValue(of(LIVE_RUNNING));
+
+    component.startLive();
+
+    vi.advanceTimersByTime(500);
+
+    expect(api.getLive).toHaveBeenCalledWith('live-001');
+
+    const calls = api.getLive.mock.calls.length;
+
+    vi.advanceTimersByTime(2000);
+
+    expect(api.getLive.mock.calls.length).toBe(calls);
   });
 });

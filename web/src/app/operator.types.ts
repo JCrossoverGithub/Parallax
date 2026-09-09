@@ -112,7 +112,10 @@ export interface PredictionEventsResponse {
 
 export type ReplayHistoryEventsResponse = PredictionEventsResponse;
 
-export type LiveEventsResponse = PredictionEventsResponse;
+export type LiveEventsResponse = PredictionEventsResponse & {
+  last_sequence: number;
+  state: LiveState;
+};
 
 export interface StartReplayRequest {
   capture: string;
