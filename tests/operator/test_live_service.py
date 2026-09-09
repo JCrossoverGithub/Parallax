@@ -692,4 +692,11 @@ def test_live_event_snapshot_preserves_global_cursor(
     assert snapshot.last_sequence == 3
     assert snapshot.state is OperatorLiveState.COMPLETED
 
-    assert [event["window"]["window_index"] for event in snapshot.events] == [1, 2]
+    window_indices: list[object] = []
+
+    for event in snapshot.events:
+        window = event["window"]
+        assert isinstance(window, dict)
+        window_indices.append(window["window_index"])
+
+    assert window_indices == [1, 2]
