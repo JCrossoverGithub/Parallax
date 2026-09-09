@@ -20,13 +20,22 @@ replay history are implemented. Selected VNAT SSH and VoIP captures have exact b
 parity, and the 45-window VoIP operator run has been restored successfully across an API-process
 restart.
 
-Milestones 1 through 5 are complete. The next operational target is Milestone 6 live sensing:
+Milestones 1 through 5 are complete. Milestone 6 live sensing is implemented through the
+least-privilege operator boundary and is now in final operational hardening:
 
 ```text
-local interface -> metadata sensor -> flows -> windows -> features
+local interface -> CAP_NET_RAW sensor -> PacketMetadata -> AF_UNIX IPC
+                -> unprivileged operator -> flows -> windows -> features
                 -> frozen model + OOD calibration -> RuntimePredictionEvent
-                -> SSE/operator service -> operations dashboard + history
+                -> SSE -> Angular operations console
 ```
+
+Live mode includes explicit start/stop lifecycle, bounded runtime flow state, processing
+instrumentation, browser active-session recovery, and a dedicated systemd sensor service. Raw
+capture remains isolated from FastAPI and the dashboard.
+
+Remaining Milestone 6 work centers on durable live history, structured sensor/overload failures,
+sustained-load validation, and final security/privacy acceptance.
 
 Live capture remains separate from the accepted VNAT experiment and does not authorize model
 retuning or stronger accuracy/OOD claims.

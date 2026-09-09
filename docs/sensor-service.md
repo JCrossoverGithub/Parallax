@@ -110,3 +110,47 @@ The PATH entry may be adjusted for another deployment layout.
 
 Do not run the FastAPI/Uvicorn operator process with sudo merely to gain
 packet-capture privileges.
+
+## Acceptance Evidence
+
+The reference deployment was validated on JPCMAIN under WSL 2 Ubuntu 24.04.
+
+The service ran as:
+
+```text
+user:  parallax-sensor
+group: parallax
+```
+
+The runtime boundary was observed as:
+
+```text
+/run/parallax
+drwxr-x--- parallax-sensor parallax
+
+/run/parallax/sensor.sock
+srw-rw---- parallax-sensor parallax
+```
+
+The running sensor capability state was:
+
+```text
+CapInh: 0000000000002000
+CapPrm: 0000000000002000
+CapEff: 0000000000002000
+CapBnd: 0000000000002000
+CapAmb: 0000000000002000
+```
+
+`getpcaps` reported:
+
+```text
+cap_net_raw=eip
+```
+
+The operator application was then launched under the normal development
+account with access to the shared `parallax` group. It connected to the
+sensor socket and completed the live packet-to-prediction path without running
+FastAPI under sudo.
+
+No persistent file capability was applied to the Python interpreter.

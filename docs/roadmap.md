@@ -2,7 +2,13 @@
 
 ## Current status
 
-Milestones 1 through 5 are complete. Milestone 6 is in progress. The first live JPCMAIN capture and frozen-runtime inference path has been validated; operator integration and operational hardening remain.
+Milestones 1 through 5 are complete. Milestone 6 is in late-stage operational
+hardening.
+
+The complete live packet-to-browser path has been validated on JPCMAIN. Live
+capture now runs behind a dedicated AF_UNIX metadata boundary in a separate
+systemd service with CAP_NET_RAW, while the FastAPI/operator process remains
+unprivileged.
 
 | Milestone | Status | Outcome |
 | --- | --- | --- |
@@ -11,7 +17,7 @@ Milestones 1 through 5 are complete. Milestone 6 is in progress. The first live 
 | 3. Raw-PCAP parity | Complete | Metadata-only parsing, bidirectional flows, PCAP windows, and exact selected-capture feature parity |
 | 4. Replayable runtime | Complete | Controlled replay through incremental features, frozen inference, and runtime prediction events |
 | 5. Operator layer | Complete | REST controls, SSE prediction streaming, Angular dashboard, durable replay history, and restart-safe history inspection |
-| 6. Live sensor and hardening | In progress | Least-privilege live capture, bounded-resource validation, observability, and operational hardening |
+| 6. Live sensor and hardening | In progress | Live capture, operator live mode, observability, resource bounds, browser recovery, and least-privilege isolation implemented; final hardening remains |
 
 ## Milestone 4 - Replayable runtime
 
@@ -184,36 +190,80 @@ to extend Milestone 5.
 
 ### Goal
 
-Replace the prerecorded PCAP source with live packet metadata while retaining the already-verified
-flow, window, feature, inference, event, persistence, and operator paths.
+Replace the prerecorded PCAP source with live packet metadata while retaining
+the verified flow, window, feature, inference, event, and operator paths, then
+harden the live runtime for bounded and least-privilege operation.
 
-The intended boundary is:
+### Implemented architecture
 
-JPCMAIN local network interface
--> narrow packet-metadata sensor
--> existing incremental flow tracker
--> existing incremental window tracker
--> existing shared feature calculation
--> existing frozen runtime
--> existing RuntimePredictionEvent
--> existing SSE/operator service
--> existing dashboard and history
+The current live path is:
 
-### Initial sequence
+```text
+local interface
+-> dedicated CAP_NET_RAW sensor service
+-> Ethernet / IPv4 decoding
+-> PacketMetadata
+-> metadata-only AF_UNIX IPC
+-> unprivileged operator process
+-> incremental flow tracking
+-> incremental observation windows
+-> shared 129-feature calculation
+-> accepted frozen classifier + OOD calibration
+-> RuntimePredictionEvent
+-> SSE
+-> Angular operations console
+```
 
-1. Define a live packet-source contract compatible with the replay packet path.
-2. Identify the correct JPCMAIN/WSL capture boundary and available interfaces.
-3. Capture only the packet metadata required by Parallax.
-4. Feed live metadata into the existing incremental runtime without duplicating feature logic.
-5. Establish clean start/stop and failure behavior.
-6. Measure active-flow count, memory use, processing latency, and sustained packet rate.
-7. Introduce explicit bounded-resource policies.
-8. Keep privileged packet capture isolated from the API and dashboard where practical.
-9. Make replay and live modes visually unambiguous.
-10. Document the security/privacy boundary and measured limitations.
+Raw frames remain on the sensor side of the privilege boundary.
 
-Live capture does not change the accepted VNAT experiment, authorize model retuning, or establish
-accuracy/OOD performance on arbitrary real-world traffic.
+### Completed work
+
+The following Milestone 6 capabilities are implemented and validated:
+
+- live interface discovery and selection;
+- shared Ethernet/IPv4 packet decoding;
+- Linux AF_PACKET capture with bounded polling and clean lifecycle;
+- metadata-only live packet sources;
+- label-free runtime observation windows and features;
+- live execution through the existing frozen prediction pipeline;
+- packet-rate and processing-latency instrumentation;
+- bounded live flow tracking with stale eviction and capacity accounting;
+- coordinated flow/window expiration invariants;
+- operator-owned live-session lifecycle;
+- explicit live start, status, stop, event snapshot, and SSE APIs;
+- bounded retained live event sequences and cursor validation;
+- Angular Live Sensor workspace;
+- real browser-to-prediction end-to-end validation;
+- active live-session discovery and page-refresh recovery;
+- versioned bounded metadata-only sensor IPC;
+- dedicated Unix-domain sensor server;
+- unprivileged IPC RuntimePacketSource client;
+- operator switchover away from direct raw capture;
+- dedicated `parallax-sensor` executable;
+- hardened systemd service identity and runtime socket permissions;
+- CAP_NET_RAW-only sensor execution;
+- successful live operation with an unprivileged FastAPI process.
+
+### Remaining hardening
+
+Milestone 6 is not yet closed.
+
+Remaining work is:
+
+1. Persist completed live sessions and prediction events durably, with
+   read-only historical inspection similar to replay history.
+2. Preserve structured sensor failures such as interface, permission, capture,
+   protocol, disconnect, and capacity errors through the operator/API layer.
+3. Define explicit operator-visible overload behavior where live capacity
+   limits are reached.
+4. Run sustained-load and soak validation and record packet rate, prediction
+   latency, tracked-flow state, capacity behavior, and process memory.
+5. Complete the final operational security/privacy review and update the
+   milestone acceptance record.
+
+Live capture does not change the accepted VNAT experiment, authorize model
+retuning, or establish accuracy/OOD performance on arbitrary real-world
+traffic.
 
 ## Experimental integrity
 

@@ -2,16 +2,62 @@
 
 ## Status
 
-Parallax completed its first controlled live-interface and frozen-runtime
-validation on 9 September 2026 using JPCMAIN under WSL 2 Ubuntu 24.04.
+Parallax completed its initial live-interface validation, operator live-mode
+integration, browser end-to-end validation, restart-safe active-session
+recovery, and least-privilege packet-capture isolation on 9 September 2026
+using JPCMAIN under WSL 2 Ubuntu 24.04.
 
-This validation establishes runtime plumbing and artifact activation. It is not
-an accuracy benchmark, an OOD-performance experiment, or evidence that the
-accepted VNAT model generalizes to current network traffic.
+The live system now operates with a dedicated packet-metadata sensor process.
+The FastAPI/operator process does not require raw-socket privileges.
 
-## Live capture boundary
+These validations establish runtime plumbing, operational integration,
+resource controls, and privilege separation. They are not an accuracy
+benchmark, an OOD-performance experiment, or evidence that the accepted VNAT
+model generalizes to arbitrary contemporary network traffic.
 
-The validated path was:
+## Final live architecture
+
+The validated production boundary is:
+
+```text
+UNPRIVILEGED OPERATOR PROCESS
+
+Angular dashboard
+-> FastAPI operator API
+-> OperatorLiveRuntimeExecutor
+-> SensorIpcPacketSource
+-> AF_UNIX /run/parallax/sensor.sock
+
+PRIVILEGED SENSOR PROCESS
+
+UnixSensorServer
+-> SensorIpcSession
+-> LivePacketSource
+-> LiveEthernetCapture
+-> Linux AF_PACKET
+-> Ethernet / IPv4 decoding
+-> PacketMetadata
+-> metadata-only AF_UNIX IPC
+
+UNPRIVILEGED OPERATOR PROCESS
+
+PacketMetadata
+-> incremental bidirectional flow tracking
+-> incremental observation windows
+-> shared 129-feature calculation
+-> accepted frozen classifier
+-> accepted OOD calibration
+-> RuntimePredictionEvent
+-> SSE
+-> Angular operations dashboard
+```
+
+Raw Ethernet frames remain inside the sensor process. Packet payload bytes do
+not cross the IPC boundary.
+
+## Initial live capture validation
+
+The first controlled capture path was:
 
 ```text
 JPCMAIN network traffic
@@ -20,16 +66,7 @@ JPCMAIN network traffic
 -> Ethernet frame adaptation
 -> shared Raw-IPv4 decoder
 -> PacketMetadata
--> bidirectional flow tracking
--> incremental runtime windowing
--> shared 129-feature calculation
--> accepted frozen classifier
--> accepted OOD calibration
--> RuntimePredictionEvent
 ```
-
-The live capture path retained packet metadata only. Packet payloads were not
-logged or persisted.
 
 The observed WSL interface was:
 
@@ -65,7 +102,7 @@ live traffic.
 
 ## First frozen-model live prediction
 
-The first controlled live frozen-runtime run used:
+The first controlled frozen-runtime live run used:
 
 ```text
 Interface:       eth0
@@ -87,10 +124,214 @@ OOD score:    0.513798
 All 60 observed Ethernet frames in this bounded run decoded as supported IPv4
 traffic. No non-IPv4 or invalid frames were counted.
 
-## Interpretation
+## Live runtime observability
 
-The prediction must not be interpreted as evidence that the ICMP traffic was
-actually VoIP.
+A subsequent 120-packet controlled ICMP run measured the live runtime rather
+than merely proving functionality:
+
+```text
+Packets processed:                  120
+Prediction events:                    1
+Elapsed wall time:              1.222234 s
+Observed packet rate:           98.18 packets/s
+Observed event rate:             0.8182 events/s
+Mean packet processing latency:  0.012019 ms
+Maximum packet latency:           0.044145 ms
+Finalization latency:            30.211949 ms
+Total pipeline compute:          31.654191 ms
+```
+
+At this observed rate the runtime spent only a small fraction of wall time in
+packet processing. Final model/OOD evaluation dominated the measured compute
+cost. The measurement is an observed workload result, not a maximum-throughput
+claim.
+
+## Bounded runtime state
+
+Live runtime state was separated from the deterministic offline batch flow
+tracker.
+
+The live tracker supports:
+
+- stale-flow eviction;
+- an explicit maximum tracked-flow count;
+- peak tracked-flow measurement;
+- capacity-rejection accounting;
+- explicit coordination between flow expiry and observation-window lifetime.
+
+A sustained synthetic churn test exercised 4,096 distinct flows over 32
+generations with a configured maximum of 128 simultaneously tracked flows.
+
+The final state remained bounded at 128 flows, with stale flows evicted as
+expected and no arbitrary active-flow eviction.
+
+## Operator live-mode integration
+
+The operator layer now has a lifecycle independent from replay:
+
+```text
+STARTING
+-> RUNNING
+-> STOPPING
+-> COMPLETED
+
+or
+
+STARTING / RUNNING / STOPPING
+-> FAILED
+```
+
+The operator service provides:
+
+- interface discovery;
+- live-session start;
+- live-session inspection;
+- explicit stop;
+- bounded retained live prediction events;
+- ordered event sequence numbers;
+- REST snapshots;
+- SSE delivery;
+- cursor validation;
+- active-session discovery.
+
+The browser dashboard supports live-mode operation separately from Replay Lab
+and History.
+
+## Browser end-to-end validation
+
+A real browser acceptance test established:
+
+```text
+Browser
+-> Angular
+-> FastAPI
+-> operator live session
+-> live runtime executor
+-> packet source
+-> Linux live capture
+-> PacketMetadata
+-> flow/window/features
+-> accepted frozen model + OOD calibration
+-> RuntimePredictionEvent
+-> SSE
+-> browser prediction feed
+```
+
+The first version of this validation temporarily ran the API process with
+elevated privilege because raw AF_PACKET capture still lived in the operator
+process at that point.
+
+That architecture was subsequently replaced by the dedicated sensor service
+described below.
+
+## Active-session recovery
+
+Live browser recovery was validated across a page refresh while capture was
+still running.
+
+The browser:
+
+1. discovered the active live session;
+2. restored retained prediction events;
+3. recovered the global event cursor;
+4. reconnected SSE after the last known sequence;
+5. avoided duplicate predictions;
+6. continued receiving new live events;
+7. stopped the original live session successfully.
+
+The operator's short startup polling also terminates after the session reaches
+RUNNING rather than remaining as unnecessary background polling.
+
+## Least-privilege sensor isolation
+
+The raw capture boundary now runs as the dedicated systemd service:
+
+```text
+parallax-sensor.service
+```
+
+The deployed service identity is:
+
+```text
+user:  parallax-sensor
+group: parallax
+```
+
+The runtime directory and socket were validated as:
+
+```text
+/run/parallax
+drwxr-x---  parallax-sensor parallax
+
+/run/parallax/sensor.sock
+srw-rw----  parallax-sensor parallax
+```
+
+The sensor process received only the required Linux raw-socket capability.
+
+Observed capability state:
+
+```text
+CapInh: 0000000000002000
+CapPrm: 0000000000002000
+CapEff: 0000000000002000
+CapBnd: 0000000000002000
+CapAmb: 0000000000002000
+```
+
+`getpcaps` reported:
+
+```text
+cap_net_raw=eip
+```
+
+No persistent capability was applied to the Python interpreter.
+
+The FastAPI operator was then launched as the normal development account,
+using membership in the `parallax` IPC group rather than sudo. After an older
+root-run validation server occupying port 8000 was stopped, the
+privilege-separated live path operated successfully.
+
+The resulting boundary is:
+
+```text
+operator API:      unprivileged
+model/OOD runtime: unprivileged
+Angular dashboard: unprivileged
+
+sensor service:    CAP_NET_RAW only
+raw AF_PACKET:     sensor process only
+```
+
+## Metadata-only IPC contract
+
+The sensor protocol is versioned and uses bounded newline-delimited JSON over
+an AF_UNIX stream socket.
+
+The privileged process accepts only a capture-interface start request and
+emits:
+
+- a ready response;
+- validated PacketMetadata messages;
+- structured sensor error messages.
+
+Packet IPC contains:
+
+- timestamp;
+- source and destination addresses;
+- source and destination ports;
+- IP protocol;
+- packet size.
+
+It does not contain Ethernet-frame bytes or application payload data.
+
+The client implements bounded stream framing and correctly handles Unix-stream
+fragmentation and message coalescing.
+
+## Interpretation of live classifications
+
+Live predictions must not be interpreted as ground-truth identification of
+the observed traffic.
 
 The classifier is closed-set and must choose among:
 
@@ -106,7 +347,7 @@ probability.
 The accepted model is also known to overpredict VoIP on its frozen VNAT test
 partition.
 
-The live ICMP window's OOD score of `0.513798` is below both frozen OOD
+The first live ICMP window's OOD score of `0.513798` was below both frozen OOD
 thresholds:
 
 ```text
@@ -114,55 +355,51 @@ thresholds:
 0.99
 ```
 
-Therefore the accepted OOD calibrator did not flag this particular unseen live
+Therefore the accepted OOD calibrator did not flag that particular unseen
 traffic as high-OOD.
 
-This is a useful limitation, not a reason to alter the frozen experiment. The
-accepted VNAT evaluation contained no true OOD examples and therefore never
-established OOD detection recall, AUROC, or generalization to arbitrary
-real-world traffic.
+This result is a limitation of the frozen experiment, not a reason to modify
+the accepted artifact.
+
+The accepted VNAT evaluation contained no true OOD examples and therefore did
+not establish OOD recall, AUROC, or generalization to arbitrary real-world
+traffic.
 
 A separate preregistered OOD/robustness experiment is required before making
-claims about detection of unseen applications, protocols, or categories.
+claims about unseen applications, protocols, or categories.
 
 ## Established evidence
 
-This validation establishes that:
+The completed live work establishes that Parallax can:
 
-1. JPCMAIN live traffic can be captured through the WSL `eth0` boundary.
-2. Linux packet capture produces ephemeral Ethernet frames without requiring
-   payload persistence.
-3. Live Ethernet frames reach the same shared Raw-IPv4 `PacketMetadata`
-   representation used by replay.
-4. Live packets can enter the existing incremental flow/window pipeline.
-5. The existing 129-feature runtime representation can be calculated from live
-   traffic.
-6. The accepted checksum-bound prototype model and OOD calibration can score
-   those live features.
-7. A normal `RuntimePredictionEvent` can be produced from real live traffic.
-8. Live runtime provenance does not fabricate VNAT application, category, or
-   VPN-status labels.
-9. The capture source closes cleanly after bounded execution.
-10. The first live ICMP result demonstrates that the current OOD score must not
-    be assumed to detect arbitrary unseen network traffic.
+1. capture live WSL interface traffic;
+2. decode supported Ethernet/IPv4 traffic into the same PacketMetadata
+   representation used by replay;
+3. keep raw frames and payload bytes out of the operator process;
+4. process live metadata through the existing flow/window/feature path;
+5. score live windows with the checksum-bound accepted classifier and OOD
+   calibration;
+6. emit normal RuntimePredictionEvent objects;
+7. deliver those predictions through the operator API and SSE to Angular;
+8. recover an active browser session without duplicating retained events;
+9. bound live flow state and measure processing behavior;
+10. isolate AF_PACKET access in a dedicated CAP_NET_RAW-only service.
 
-## Remaining Milestone 6 work
+## Remaining Milestone 6 hardening
 
-The validated live sensor is not yet the completed operational live mode.
+The core live architecture is complete. Remaining Milestone 6 work is focused
+on operational hardening rather than establishing the packet-to-prediction
+path.
 
 Remaining work includes:
 
-- operator-service live-session lifecycle;
-- explicit live start/stop controls;
-- SSE delivery of live prediction events;
-- durable live-session history;
-- clear replay-versus-live dashboard state;
-- packet-rate and processing-latency instrumentation;
-- active-flow and resource-use measurements;
-- explicit bounded-resource policies;
-- privileged-sensor isolation;
-- structured capture and overload failures;
-- operational privacy/security documentation;
-- sustained-load validation.
+- durable persistence and read-only inspection of completed live sessions;
+- preserving structured sensor/capture failures through the operator session
+  and API instead of collapsing them into a generic execution failure;
+- explicit operator-visible overload/capacity failure behavior;
+- sustained-load and soak validation including packet rate, processing
+  latency, tracked-flow state, capacity behavior, and process memory;
+- final operational security/privacy review and milestone acceptance
+  documentation.
 
 The accepted VNAT experiment remains frozen throughout this work.

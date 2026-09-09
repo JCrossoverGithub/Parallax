@@ -5,16 +5,17 @@
 | Field | Value |
 | --- | --- |
 | Project name | Parallax |
-| Document version | 0.5 |
-| Status | Implemented through operator replay service, dashboard, and durable replay history |
+| Document version | 0.6 |
+| Status | Implemented through live operator mode and least-privilege sensor isolation; final Milestone 6 hardening in progress |
 | Date | 2026-09-09 |
 | Owner | Josh Schultz |
 | Intended repository | `Parallax` |
 | Initial development environment | Windows 11 with WSL 2 Ubuntu 24.04 |
 
-> This is a living engineering design. Implemented replay, runtime, operator-service,
-> dashboard, and persistence behavior is distinguished from planned live-capture and hardening
-> work so the document describes the system as built.
+> This is a living engineering design. Replay, runtime, operator-service,
+> dashboard, live sensing, bounded live state, and least-privilege capture
+> behavior are documented as implemented. Remaining Milestone 6 items are
+> identified explicitly rather than described as already complete.
 
 ## 1. Executive Summary
 
@@ -31,30 +32,54 @@ This is not intended to be presented as a production intrusion-detection system 
 
 ### 1.1 Current implementation checkpoint
 
-Milestones 1 through 4 are complete. The implemented runtime now supports:
+Milestones 1 through 5 are complete. Milestone 6 has established the full live
+packet-to-browser path and is now in final operational hardening.
 
-- Metadata-only classic Raw-IP VNAT PCAP parsing for supported IPv4 ICMP, TCP, and UDP traffic.
-- Deterministic bidirectional flow construction with first-observed orientation.
-- Incremental capture-relative observation windows using the release-compatible eligibility policy.
-- The same 129-feature calculation used by the accepted offline feature path.
-- Deterministic replay at configured or maximum speed with pause, resume, cancel, completion,
-  and structured failure states.
-- Checksum- and provenance-verified loading of the accepted frozen prototype model and OOD
-  calibration artifacts.
-- CPU runtime scoring that returns raw class probabilities, selected category, raw confidence,
-  relative-Mahalanobis distance, and OOD score.
-- Stable runtime prediction events carrying session, window, model, calibration, feature-artifact,
-  and split-manifest identity.
-- Lifecycle-safe replay integration: completed sessions flush final eligible windows, while
-  cancelled or failed sessions do not turn incomplete buffered state into final predictions.
+The implemented system supports:
 
-Selected acceptance captures demonstrated exact batch/runtime feature parity: five eligible SSH
-windows and 45 eligible VoIP windows matched exactly with maximum absolute feature difference
-`0.0`.
+- metadata-only classic Raw-IP VNAT PCAP parsing for supported IPv4 ICMP, TCP,
+  and UDP traffic;
+- deterministic bidirectional flow construction with first-observed
+  orientation;
+- incremental capture-relative observation windows using the
+  release-compatible eligibility policy;
+- the same 129-feature calculation used by the accepted offline feature path;
+- deterministic replay at configured or maximum speed with pause, resume,
+  cancel, completion, and structured failure states;
+- checksum- and provenance-verified loading of the accepted frozen prototype
+  model and OOD calibration artifacts;
+- CPU runtime scoring returning raw class probabilities, selected category,
+  raw confidence, relative-Mahalanobis distance, and OOD score;
+- stable runtime prediction events carrying session, window, model,
+  calibration, feature-artifact, and split-manifest identity;
+- REST and SSE operator APIs;
+- Angular Replay Lab, Live Sensor, Monitor, and History workspaces;
+- durable replay history across API-process restart;
+- Linux live capture from the JPCMAIN WSL interface;
+- bounded live flow tracking with stale eviction and capacity accounting;
+- live runtime packet-rate and processing-latency instrumentation;
+- operator-owned live-session lifecycle and explicit start/stop controls;
+- bounded retained live event history and sequence cursors;
+- browser active-session recovery across refresh without prediction
+  duplication;
+- a versioned metadata-only AF_UNIX sensor protocol;
+- a dedicated `parallax-sensor` systemd service;
+- CAP_NET_RAW isolation to the sensor process rather than the API or Python
+  interpreter;
+- successful live operation with the FastAPI/operator process running
+  unprivileged.
 
-The operator REST API, SSE prediction transport, Angular dashboard, and durable SQLite replay
-history are implemented. Historical predictions remain readable across an API-process restart.
-Live local-interface capture and measured operational hardening remain Milestone 6.
+Selected acceptance captures demonstrated exact batch/runtime feature parity:
+five eligible SSH windows and 45 eligible VoIP windows matched exactly with
+maximum absolute feature difference `0.0`.
+
+The accepted model and OOD calibration remain frozen. Live observations do not
+constitute new accuracy or OOD-generalization evidence.
+
+Remaining Milestone 6 work is limited to durable live-session history,
+end-to-end structured sensor failures, explicit overload behavior,
+sustained-load/soak measurements, and final operational security/privacy
+acceptance.
 
 ## 2. Background
 
@@ -159,7 +184,7 @@ Given a labeled or unlabeled PCAP file, the system shall replay the traffic thro
 | FR-014 | Display classifications, confidence, OOD scores, replay state, and service health. | Required |
 | FR-015 | Persist operational sessions, predictions, errors, and model identity. | Required |
 | FR-016 | Export evaluation results in machine-readable and human-readable formats. | Required |
-| FR-017 | Capture traffic from a live local interface through a least-privilege sensor. | Later milestone |
+| FR-017 | Capture traffic from a live local interface through a least-privilege sensor. | Required - implemented in Milestone 6 |
 | FR-018 | Add newly labeled applications or categories through a controlled retraining workflow. | Later milestone |
 
 ### 6.2 Nonfunctional requirements
@@ -214,7 +239,7 @@ flowchart LR
     Interface[Local capture interface]
 
     Data --> System
-    Interface -. Later milestone .-> System
+    Interface --> System
     Analyst --> System
     System --> Analyst
 ```
@@ -245,7 +270,7 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
-    participant Source as Replay source
+    participant Source as Replay / live source
     participant Flow as Flow engine
     participant Features as Feature pipeline
     participant Model as Inference service
@@ -260,6 +285,36 @@ sequenceDiagram
     Model->>Store: Persist prediction and provenance
     Model-->>UI: Stream prediction event
 ```
+
+### 8.4 Live privilege boundary
+
+Live packet capture is isolated from the operator application.
+
+```text
+UNPRIVILEGED
+FastAPI / operator
+-> SensorIpcPacketSource
+
+LOCAL IPC
+/run/parallax/sensor.sock
+
+PRIVILEGED
+parallax-sensor
+-> UnixSensorServer
+-> LivePacketSource
+-> LiveEthernetCapture
+-> AF_PACKET
+```
+
+Only validated PacketMetadata crosses from the sensor process into the
+operator process.
+
+The service receives CAP_NET_RAW through systemd
+`AmbientCapabilities` and `CapabilityBoundingSet`. The general Python
+interpreter is not modified with persistent file capabilities.
+
+The runtime directory is owned by the sensor service identity and shared with
+the `parallax` IPC group. The socket is not world-accessible.
 
 ## 9. Component Responsibilities
 
