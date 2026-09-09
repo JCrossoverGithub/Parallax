@@ -23,7 +23,9 @@ from parallax.features.flow_statistics import (
     calculate_interarrival_feature_vector,
 )
 from parallax.features.runtime import (
+    RuntimeWindowFeature,
     VnatWindowFeature,
+    calculate_runtime_window_feature,
     calculate_vnat_window_feature,
     extract_vnat_pcap_features,
 )
@@ -87,6 +89,7 @@ __all__ = [
     "FeatureExportError",
     "FeatureExportReport",
     "FeatureExportSummary",
+    "RuntimeWindowFeature",
     "VnatWindowFeature",
     "WaveletNormalization",
     "build_directional_size_signals",
@@ -95,6 +98,7 @@ __all__ = [
     "calculate_directional_wavelet_features",
     "calculate_feature_vector",
     "calculate_interarrival_feature_vector",
+    "calculate_runtime_window_feature",
     "calculate_vnat_window_feature",
     "calculate_wavelet_feature_vector",
     "export_capture_split_manifest",

@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from parallax.data import FEATURE_COUNT
-from parallax.features.runtime import VnatWindowFeature
+from parallax.features.runtime import RuntimeWindowFeature
 from parallax.modeling.baselines import CATEGORY_LABELS
 from parallax.modeling.bundle import LoadedPrototypeBundle
 from parallax.modeling.calibration_bundle import LoadedPrototypeCalibration
@@ -45,15 +45,15 @@ def _calibration() -> LoadedPrototypeCalibration:
     )
 
 
-def _feature() -> VnatWindowFeature:
+def _feature() -> RuntimeWindowFeature:
     values = np.arange(FEATURE_COUNT, dtype=np.float32)
     values.setflags(write=False)
 
     return cast(
-        VnatWindowFeature,
+        RuntimeWindowFeature,
         SimpleNamespace(
             window_id="capture:flow:0",
-            capture=SimpleNamespace(capture_id="nonvpn_ssh_capture4.pcap"),
+            capture_id="nonvpn_ssh_capture4.pcap",
             flow_id="flow",
             window_index=0,
             start_offset_seconds=0.0,

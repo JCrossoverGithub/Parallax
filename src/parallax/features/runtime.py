@@ -1,4 +1,4 @@
-"""Runtime feature construction from labeled VNAT PCAP captures."""
+"""Feature construction for offline VNAT and label-free runtime windows."""
 
 from collections.abc import Iterator
 from dataclasses import dataclass
@@ -6,6 +6,7 @@ from pathlib import Path
 
 from parallax.data.pcap import PacketSizePolicy
 from parallax.data.pcap_windowing import extract_vnat_pcap_windows
+from parallax.data.runtime_windowing import RuntimeObservationWindow
 from parallax.data.vnat import CaptureMetadata
 from parallax.data.windowing import ObservationWindow, WindowExtractionConfig
 from parallax.features.calculator import (
@@ -17,10 +18,24 @@ from parallax.features.schema import Float32Array
 
 @dataclass(frozen=True, slots=True, eq=False)
 class VnatWindowFeature:
-    """Traceable feature vector without retained raw packet sequences."""
+    """Traceable feature vector for one labeled VNAT observation window."""
 
     window_id: str
     capture: CaptureMetadata
+    flow_id: str
+    window_index: int
+    start_offset_seconds: float
+    end_offset_seconds: float
+    packet_count: int
+    values: Float32Array
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class RuntimeWindowFeature:
+    """Traceable label-free feature vector for runtime inference."""
+
+    window_id: str
+    capture_id: str
     flow_id: str
     window_index: int
     start_offset_seconds: float
@@ -34,10 +49,33 @@ def calculate_vnat_window_feature(
     *,
     feature_config: FeatureCalculationConfig | None = None,
 ) -> VnatWindowFeature:
-    """Calculate one traceable feature vector from an eligible observation window."""
+    """Calculate one labeled VNAT feature vector."""
     return VnatWindowFeature(
         window_id=window.window_id,
         capture=window.capture,
+        flow_id=window.flow_id,
+        window_index=window.window_index,
+        start_offset_seconds=window.start_offset_seconds,
+        end_offset_seconds=window.end_offset_seconds,
+        packet_count=window.packet_count,
+        values=calculate_feature_vector(
+            window.timestamps,
+            window.sizes,
+            window.directions,
+            config=feature_config,
+        ),
+    )
+
+
+def calculate_runtime_window_feature(
+    window: RuntimeObservationWindow,
+    *,
+    feature_config: FeatureCalculationConfig | None = None,
+) -> RuntimeWindowFeature:
+    """Calculate one label-free runtime feature vector."""
+    return RuntimeWindowFeature(
+        window_id=window.window_id,
+        capture_id=window.capture_id,
         flow_id=window.flow_id,
         window_index=window.window_index,
         start_offset_seconds=window.start_offset_seconds,

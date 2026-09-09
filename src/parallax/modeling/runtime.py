@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from parallax.features.runtime import VnatWindowFeature
+from parallax.features.runtime import RuntimeWindowFeature
 from parallax.modeling.bundle import (
     LoadedPrototypeBundle,
     load_prototype_model_bundle,
@@ -50,7 +50,7 @@ class PrototypeRuntime:
 
     def score_feature(
         self,
-        feature: VnatWindowFeature,
+        feature: RuntimeWindowFeature,
     ) -> PrototypeRuntimePrediction:
         """Score one runtime feature without using capture labels."""
         feature_matrix = np.asarray(feature.values, dtype=np.float32)[None, :]
@@ -65,7 +65,7 @@ class PrototypeRuntime:
 
         return PrototypeRuntimePrediction(
             window_id=feature.window_id,
-            capture_id=feature.capture.capture_id,
+            capture_id=feature.capture_id,
             flow_id=feature.flow_id,
             window_index=feature.window_index,
             start_offset_seconds=feature.start_offset_seconds,

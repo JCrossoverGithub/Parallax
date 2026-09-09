@@ -5,11 +5,14 @@ from typing import Protocol
 from parallax.data import (
     BidirectionalFlowTracker,
     IncrementalWindowTracker,
-    ObservationWindow,
     PacketMetadata,
+    RuntimeObservationWindow,
     WindowExtractionConfig,
 )
-from parallax.features import VnatWindowFeature, calculate_vnat_window_feature
+from parallax.features import (
+    RuntimeWindowFeature,
+    calculate_runtime_window_feature,
+)
 from parallax.modeling.runtime import PrototypeRuntimePrediction
 from parallax.runtime.events import RuntimePredictionEvent
 
@@ -23,7 +26,7 @@ class RuntimeScorer(Protocol):
 
     def score_feature(
         self,
-        feature: VnatWindowFeature,
+        feature: RuntimeWindowFeature,
     ) -> PrototypeRuntimePrediction:
         """Score one runtime feature."""
 
@@ -81,13 +84,14 @@ class PacketPredictionPipeline:
 
     def _score_windows(
         self,
-        windows: tuple[ObservationWindow, ...],
+        windows: tuple[RuntimeObservationWindow, ...],
     ) -> tuple[RuntimePredictionEvent, ...]:
         events: list[RuntimePredictionEvent] = []
 
         for window in windows:
-            feature = calculate_vnat_window_feature(window)
+            feature = calculate_runtime_window_feature(window)
             prediction = self._scorer.score_feature(feature)
+
             events.append(
                 RuntimePredictionEvent(
                     run_id=self._run_id,

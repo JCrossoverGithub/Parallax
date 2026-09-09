@@ -10,7 +10,7 @@ from parallax.data import (
     WindowExtractionConfig,
     WindowThresholdPolicy,
 )
-from parallax.features import VnatWindowFeature
+from parallax.features import RuntimeWindowFeature
 from parallax.modeling.baselines import CATEGORY_LABELS
 from parallax.modeling.runtime import PrototypeRuntimePrediction
 from parallax.replay import (
@@ -59,13 +59,13 @@ class ScriptedClock:
 class FakeScorer:
     def score_feature(
         self,
-        feature: VnatWindowFeature,
+        feature: RuntimeWindowFeature,
     ) -> PrototypeRuntimePrediction:
         probabilities = (0.7, 0.1, 0.1, 0.05, 0.05)
 
         return PrototypeRuntimePrediction(
             window_id=feature.window_id,
-            capture_id=feature.capture.capture_id,
+            capture_id=feature.capture_id,
             flow_id=feature.flow_id,
             window_index=feature.window_index,
             start_offset_seconds=feature.start_offset_seconds,

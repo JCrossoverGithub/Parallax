@@ -33,6 +33,7 @@ from parallax.data.pcap import (
 from parallax.data.pcap_windowing import extract_vnat_pcap_windows
 from parallax.data.runtime_windowing import (
     IncrementalWindowTracker,
+    RuntimeObservationWindow,
     RuntimeWindowError,
 )
 from parallax.data.splitting import (
@@ -122,6 +123,7 @@ __all__ = [
     "PacketMetadata",
     "PacketSizePolicy",
     "PcapReadError",
+    "RuntimeObservationWindow",
     "RuntimeWindowError",
     "TrafficCategory",
     "VerifiedVnatDataframe",

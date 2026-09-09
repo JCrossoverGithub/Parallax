@@ -9,7 +9,7 @@ import dpkt  # type: ignore[import-untyped]
 import pytest
 
 from parallax.data import FEATURE_COUNT, IP_PROTOCOL_TCP, PCAP_LINKTYPE_RAW_IP
-from parallax.features import VnatWindowFeature
+from parallax.features import RuntimeWindowFeature
 from parallax.modeling.baselines import CATEGORY_LABELS
 from parallax.modeling.runtime import PrototypeRuntime, PrototypeRuntimePrediction
 from parallax.operator import (
@@ -27,14 +27,14 @@ DESTINATION = "10.103.1.100"
 class FakeScorer:
     def score_feature(
         self,
-        feature: VnatWindowFeature,
+        feature: RuntimeWindowFeature,
     ) -> PrototypeRuntimePrediction:
         assert feature.values.shape == (FEATURE_COUNT,)
         probabilities = (0.7, 0.1, 0.1, 0.05, 0.05)
 
         return PrototypeRuntimePrediction(
             window_id=feature.window_id,
-            capture_id=feature.capture.capture_id,
+            capture_id=feature.capture_id,
             flow_id=feature.flow_id,
             window_index=feature.window_index,
             start_offset_seconds=feature.start_offset_seconds,

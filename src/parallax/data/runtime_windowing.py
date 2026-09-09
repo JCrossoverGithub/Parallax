@@ -1,4 +1,4 @@
-"""Incremental observation-window construction for replayed packet metadata."""
+"""Incremental observation-window construction for runtime packet metadata."""
 
 from dataclasses import dataclass, field
 from typing import cast
@@ -7,10 +7,8 @@ import numpy as np
 import numpy.typing as npt
 
 from parallax.data.flows import FlowPacketAssignment
-from parallax.data.vnat import CaptureMetadata, parse_capture_filename
 from parallax.data.windowing import (
     ConnectionKey,
-    ObservationWindow,
     VnatWindowError,
     WindowExtractionConfig,
     make_flow_id,
@@ -19,6 +17,27 @@ from parallax.data.windowing import (
 
 class RuntimeWindowError(VnatWindowError):
     """Raised when incremental packet assignments cannot form runtime windows."""
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class RuntimeObservationWindow:
+    """One label-free runtime observation window."""
+
+    window_id: str
+    capture_id: str
+    flow_id: str
+    connection: ConnectionKey
+    window_index: int
+    start_offset_seconds: float
+    end_offset_seconds: float
+    timestamps: npt.NDArray[np.float64]
+    sizes: npt.NDArray[np.int64]
+    directions: npt.NDArray[np.int8]
+
+    @property
+    def packet_count(self) -> int:
+        """Number of packets represented by this window."""
+        return int(self.timestamps.size)
 
 
 @dataclass(slots=True)
@@ -30,11 +49,11 @@ class _WindowBuffer:
 
 
 class IncrementalWindowTracker:
-    """Incrementally emit completed eligible observation windows."""
+    """Incrementally emit completed label-free runtime windows."""
 
     __slots__ = (
         "_buffers",
-        "_capture",
+        "_capture_id",
         "_capture_origin",
         "_config",
         "_current_window_index",
@@ -44,11 +63,14 @@ class IncrementalWindowTracker:
 
     def __init__(
         self,
-        capture_name: str,
+        capture_id: str,
         *,
         config: WindowExtractionConfig | None = None,
     ) -> None:
-        self._capture: CaptureMetadata = parse_capture_filename(capture_name)
+        if not capture_id:
+            raise RuntimeWindowError("runtime capture ID must not be empty")
+
+        self._capture_id = capture_id
         self._config = config if config is not None else WindowExtractionConfig()
         self._capture_origin: float | None = None
         self._current_window_index: int | None = None
@@ -59,7 +81,7 @@ class IncrementalWindowTracker:
     def push(
         self,
         assignment: FlowPacketAssignment,
-    ) -> tuple[ObservationWindow, ...]:
+    ) -> tuple[RuntimeObservationWindow, ...]:
         """Consume one flow-assigned packet and emit newly completed windows."""
         if self._finished:
             raise RuntimeWindowError("cannot push packets after runtime windowing is finished")
@@ -71,6 +93,7 @@ class IncrementalWindowTracker:
             )
 
         packet = assignment.packet
+
         if self._capture_origin is None:
             self._capture_origin = packet.timestamp_seconds
 
@@ -82,11 +105,11 @@ class IncrementalWindowTracker:
         current_window_index = self._current_window_index
         if current_window_index is not None and window_index < current_window_index:
             raise RuntimeWindowError(
-                f"packet {assignment.packet_number}: window index precedes "
-                "the current capture window"
+                f"packet {assignment.packet_number}: "
+                "window index precedes the current capture window"
             )
 
-        completed: tuple[ObservationWindow, ...] = ()
+        completed: tuple[RuntimeObservationWindow, ...] = ()
 
         if current_window_index is None:
             self._current_window_index = window_index
@@ -95,6 +118,7 @@ class IncrementalWindowTracker:
             self._current_window_index = window_index
 
         buffer = self._buffers.get(assignment.connection)
+
         if buffer is None:
             buffer = _WindowBuffer(window_index=window_index)
             self._buffers[assignment.connection] = buffer
@@ -106,7 +130,7 @@ class IncrementalWindowTracker:
         self._packet_number = assignment.packet_number
         return completed
 
-    def finish(self) -> tuple[ObservationWindow, ...]:
+    def finish(self) -> tuple[RuntimeObservationWindow, ...]:
         """Flush final eligible windows and permanently close the tracker."""
         if self._finished:
             return ()
@@ -116,8 +140,8 @@ class IncrementalWindowTracker:
         self._buffers.clear()
         return windows
 
-    def _flush_all(self) -> tuple[ObservationWindow, ...]:
-        completed: list[ObservationWindow] = []
+    def _flush_all(self) -> tuple[RuntimeObservationWindow, ...]:
+        completed: list[RuntimeObservationWindow] = []
 
         for connection in sorted(tuple(self._buffers)):
             buffer = self._buffers.pop(connection)
@@ -132,26 +156,28 @@ class IncrementalWindowTracker:
         self,
         connection: ConnectionKey,
         buffer: _WindowBuffer,
-    ) -> ObservationWindow | None:
+    ) -> RuntimeObservationWindow | None:
         if not self._config.retains(len(buffer.timestamps)):
             return None
 
         capture_origin = cast(float, self._capture_origin)
 
-        absolute_timestamps = np.asarray(buffer.timestamps, dtype=np.float64)
+        absolute_timestamps = np.asarray(
+            buffer.timestamps,
+            dtype=np.float64,
+        )
         capture_relative_timestamps = absolute_timestamps - capture_origin
         window_start = buffer.window_index * self._config.window_seconds
+        flow_id = make_flow_id(self._capture_id, connection)
 
-        flow_id = make_flow_id(self._capture.capture_id, connection)
-
-        return ObservationWindow(
-            window_id=f"{self._capture.capture_id}:{flow_id}:{buffer.window_index}",
-            capture=self._capture,
+        return RuntimeObservationWindow(
+            window_id=(f"{self._capture_id}:{flow_id}:{buffer.window_index}"),
+            capture_id=self._capture_id,
             flow_id=flow_id,
             connection=connection,
             window_index=buffer.window_index,
             start_offset_seconds=window_start,
-            end_offset_seconds=(buffer.window_index + 1) * self._config.window_seconds,
+            end_offset_seconds=((buffer.window_index + 1) * self._config.window_seconds),
             timestamps=_readonly(
                 capture_relative_timestamps - window_start,
                 np.float64,

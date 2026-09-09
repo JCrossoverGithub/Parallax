@@ -165,7 +165,7 @@ def test_incremental_windows_match_batch_pcap_features(tmp_path: Path) -> None:
         WindowThresholdPolicy,
         iter_pcap_packet_metadata,
     )
-    from parallax.features.runtime import calculate_vnat_window_feature
+    from parallax.features.runtime import calculate_runtime_window_feature
 
     source = tmp_path / "nonvpn_ssh_capture91.pcap"
 
@@ -225,9 +225,9 @@ def test_incremental_windows_match_batch_pcap_features(tmp_path: Path) -> None:
         assignment = flow_tracker.push(packet)
 
         for window in window_tracker.push(assignment):
-            actual.append(calculate_vnat_window_feature(window))
+            actual.append(calculate_runtime_window_feature(window))
 
-    actual.extend(calculate_vnat_window_feature(window) for window in window_tracker.finish())
+    actual.extend(calculate_runtime_window_feature(window) for window in window_tracker.finish())
 
     assert [feature.window_id for feature in actual] == [feature.window_id for feature in expected]
     assert [feature.packet_count for feature in actual] == [
@@ -241,7 +241,7 @@ def test_incremental_windows_match_batch_pcap_features(tmp_path: Path) -> None:
         )
 
 
-def test_calculate_vnat_window_feature_preserves_window_provenance(
+def test_calculate_runtime_window_feature_preserves_window_provenance(
     tmp_path: Path,
 ) -> None:
     from parallax.data import (
@@ -251,7 +251,7 @@ def test_calculate_vnat_window_feature_preserves_window_provenance(
         WindowThresholdPolicy,
         iter_pcap_packet_metadata,
     )
-    from parallax.features.runtime import calculate_vnat_window_feature
+    from parallax.features.runtime import calculate_runtime_window_feature
 
     source = tmp_path / "nonvpn_ssh_capture92.pcap"
     _write_pcap(
@@ -282,10 +282,10 @@ def test_calculate_vnat_window_feature_preserves_window_provenance(
         assert window_tracker.push(flow_tracker.push(packet)) == ()
 
     window = window_tracker.finish()[0]
-    feature = calculate_vnat_window_feature(window)
+    feature = calculate_runtime_window_feature(window)
 
     assert feature.window_id == window.window_id
-    assert feature.capture == window.capture
+    assert feature.capture_id == window.capture_id
     assert feature.flow_id == window.flow_id
     assert feature.window_index == window.window_index
     assert feature.start_offset_seconds == window.start_offset_seconds

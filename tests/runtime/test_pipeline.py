@@ -5,11 +5,11 @@ import pytest
 
 from parallax.data import (
     FlowPacketAssignment,
-    ObservationWindow,
     PacketMetadata,
+    RuntimeObservationWindow,
     WindowExtractionConfig,
 )
-from parallax.features import VnatWindowFeature
+from parallax.features import RuntimeWindowFeature
 from parallax.modeling.runtime import PrototypeRuntimePrediction
 from parallax.runtime.pipeline import (
     PacketPredictionPipeline,
@@ -40,12 +40,12 @@ class NamedPrediction:
     name: str
 
 
-def _window(name: str) -> ObservationWindow:
-    return cast(ObservationWindow, NamedWindow(name))
+def _window(name: str) -> RuntimeObservationWindow:
+    return cast(RuntimeObservationWindow, NamedWindow(name))
 
 
-def _feature(name: str) -> VnatWindowFeature:
-    return cast(VnatWindowFeature, NamedFeature(name))
+def _feature(name: str) -> RuntimeWindowFeature:
+    return cast(RuntimeWindowFeature, NamedFeature(name))
 
 
 def _prediction(name: str) -> PrototypeRuntimePrediction:
@@ -80,22 +80,22 @@ class FakeWindowTracker:
     def push(
         self,
         assignment: FlowPacketAssignment,
-    ) -> tuple[ObservationWindow, ...]:
+    ) -> tuple[RuntimeObservationWindow, ...]:
         self.assignments.append(assignment)
         return (_window("first"), _window("second"))
 
-    def finish(self) -> tuple[ObservationWindow, ...]:
+    def finish(self) -> tuple[RuntimeObservationWindow, ...]:
         self.finish_calls += 1
         return (_window("final"),)
 
 
 class FakeScorer:
     def __init__(self) -> None:
-        self.features: list[VnatWindowFeature] = []
+        self.features: list[RuntimeWindowFeature] = []
 
     def score_feature(
         self,
-        feature: VnatWindowFeature,
+        feature: RuntimeWindowFeature,
     ) -> PrototypeRuntimePrediction:
         self.features.append(feature)
         return _prediction(cast(NamedFeature, feature).name)
@@ -116,7 +116,7 @@ def test_pipeline_composes_packet_through_prediction_events(
         FakeWindowTracker,
     )
     monkeypatch.setattr(
-        "parallax.runtime.pipeline.calculate_vnat_window_feature",
+        "parallax.runtime.pipeline.calculate_runtime_window_feature",
         lambda window: _feature(cast(NamedWindow, window).name),
     )
 
@@ -164,7 +164,7 @@ def test_finish_flushes_once_and_closes_pipeline(
         FakeWindowTracker,
     )
     monkeypatch.setattr(
-        "parallax.runtime.pipeline.calculate_vnat_window_feature",
+        "parallax.runtime.pipeline.calculate_runtime_window_feature",
         lambda window: _feature(cast(NamedWindow, window).name),
     )
 

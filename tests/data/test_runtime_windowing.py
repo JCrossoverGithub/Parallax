@@ -9,6 +9,7 @@ from parallax.data import (
     IncrementalWindowTracker,
     ObservationWindow,
     PacketMetadata,
+    RuntimeObservationWindow,
     RuntimeWindowError,
     WindowExtractionConfig,
     WindowThresholdPolicy,
@@ -66,10 +67,10 @@ def _runtime_windows(
     packets: list[PacketMetadata],
     *,
     config: WindowExtractionConfig,
-) -> list[ObservationWindow]:
+) -> list[RuntimeObservationWindow]:
     flow_tracker = BidirectionalFlowTracker()
     window_tracker = IncrementalWindowTracker(CAPTURE_NAME, config=config)
-    windows: list[ObservationWindow] = []
+    windows: list[RuntimeObservationWindow] = []
 
     for packet in packets:
         windows.extend(window_tracker.push(flow_tracker.push(packet)))
@@ -79,11 +80,11 @@ def _runtime_windows(
 
 
 def _assert_window_equal(
-    actual: ObservationWindow,
+    actual: RuntimeObservationWindow,
     expected: ObservationWindow,
 ) -> None:
     assert actual.window_id == expected.window_id
-    assert actual.capture == expected.capture
+    assert actual.capture_id == expected.capture.capture_id
     assert actual.flow_id == expected.flow_id
     assert actual.connection == expected.connection
     assert actual.window_index == expected.window_index
@@ -223,6 +224,14 @@ def test_empty_tracker_finishes_without_windows() -> None:
 
     assert tracker.finish() == ()
     assert tracker.finish() == ()
+
+
+def test_rejects_empty_runtime_capture_id() -> None:
+    with pytest.raises(
+        RuntimeWindowError,
+        match="runtime capture ID must not be empty",
+    ):
+        IncrementalWindowTracker("")
 
 
 def test_rejects_nonsequential_flow_assignments() -> None:
