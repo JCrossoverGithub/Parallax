@@ -27,6 +27,13 @@ from parallax.sensor.ipc_protocol import (
     decode_sensor_ipc_message,
     encode_sensor_ipc_message,
 )
+from parallax.sensor.ipc_server import (
+    SensorIpcServerError,
+    SensorIpcSession,
+    SensorPacketSource,
+    SensorPacketSourceFactory,
+    UnixSensorServer,
+)
 from parallax.sensor.source import (
     LivePacketSource,
     LivePacketSourceStats,
@@ -46,9 +53,14 @@ __all__ = [
     "SensorInterfaceError",
     "SensorIpcMessage",
     "SensorIpcProtocolError",
+    "SensorIpcServerError",
+    "SensorIpcSession",
     "SensorPacketMessage",
+    "SensorPacketSource",
+    "SensorPacketSourceFactory",
     "SensorReadyMessage",
     "SensorStartRequest",
+    "UnixSensorServer",
     "decode_ethernet_ipv4_frame",
     "decode_sensor_ipc_message",
     "encode_sensor_ipc_message",
