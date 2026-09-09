@@ -109,7 +109,7 @@ def test_pipeline_composes_packet_through_prediction_events(
     scorer = FakeScorer()
 
     monkeypatch.setattr(
-        "parallax.runtime.pipeline.BidirectionalFlowTracker",
+        "parallax.runtime.pipeline.RuntimeFlowTracker",
         lambda: flow_tracker,
     )
     monkeypatch.setattr(
@@ -157,7 +157,7 @@ def test_finish_flushes_once_and_closes_pipeline(
     scorer = FakeScorer()
 
     monkeypatch.setattr(
-        "parallax.runtime.pipeline.BidirectionalFlowTracker",
+        "parallax.runtime.pipeline.RuntimeFlowTracker",
         FakeFlowTracker,
     )
     monkeypatch.setattr(

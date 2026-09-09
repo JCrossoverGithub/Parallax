@@ -31,6 +31,7 @@ from parallax.data.pcap import (
     iter_pcap_packet_metadata,
 )
 from parallax.data.pcap_windowing import extract_vnat_pcap_windows
+from parallax.data.runtime_flows import RuntimeFlowTracker
 from parallax.data.runtime_windowing import (
     IncrementalWindowTracker,
     RuntimeObservationWindow,
@@ -123,6 +124,7 @@ __all__ = [
     "PacketMetadata",
     "PacketSizePolicy",
     "PcapReadError",
+    "RuntimeFlowTracker",
     "RuntimeObservationWindow",
     "RuntimeWindowError",
     "TrafficCategory",

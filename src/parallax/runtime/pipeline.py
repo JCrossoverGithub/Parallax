@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from parallax.data import (
-    BidirectionalFlowTracker,
     IncrementalWindowTracker,
     PacketMetadata,
+    RuntimeFlowTracker,
     RuntimeObservationWindow,
     WindowExtractionConfig,
 )
@@ -67,7 +67,7 @@ class PacketPredictionPipeline:
 
         self._run_id = run_id
         self._scorer = scorer
-        self._flow_tracker = BidirectionalFlowTracker()
+        self._flow_tracker = RuntimeFlowTracker()
         self._window_tracker = IncrementalWindowTracker(
             capture_id,
             config=window_config,
