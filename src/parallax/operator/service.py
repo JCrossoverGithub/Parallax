@@ -5,7 +5,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from threading import RLock, Thread
+from threading import Event, RLock, Thread
 from uuid import uuid4
 
 from parallax.modeling.runtime import PrototypeRuntime
@@ -13,6 +13,12 @@ from parallax.operator.history import (
     OperatorHistoryError,
     OperatorHistoryRecord,
     SqliteOperatorHistory,
+)
+from parallax.operator.live import (
+    OperatorLiveConfiguration,
+    OperatorLiveSession,
+    OperatorLiveSessionError,
+    OperatorLiveState,
 )
 from parallax.replay import (
     ReplayConfiguration,
@@ -28,6 +34,12 @@ from parallax.runtime import (
     RuntimePredictionEvent,
     RuntimeScorer,
     run_packet_prediction_replay,
+)
+from parallax.sensor import (
+    CaptureInterface,
+    SensorInterfaceError,
+    list_capture_interfaces,
+    resolve_capture_interface,
 )
 
 _TERMINAL_STATES = frozenset(
@@ -53,6 +65,20 @@ class OperatorReplayConflictError(OperatorServiceError):
 
 class OperatorEventCursorError(OperatorServiceError):
     """Raised when an event-stream cursor cannot be satisfied."""
+
+
+class OperatorLiveNotFoundError(OperatorServiceError):
+    """Raised when an operator live-session ID does not exist."""
+
+
+class OperatorLiveConflictError(OperatorServiceError):
+    """Raised when a live sensor request conflicts with current state."""
+
+
+OperatorLiveExecutor = Callable[
+    [OperatorLiveConfiguration, Event],
+    None,
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +172,12 @@ class _ReplayRecord:
     total_events: int = 0
 
 
+@dataclass(slots=True)
+class _LiveRecord:
+    session: OperatorLiveSession
+    stop_event: Event
+
+
 class OperatorReplayService:
     """Own replay execution and bounded operator-visible in-memory state."""
 
@@ -157,6 +189,11 @@ class OperatorReplayService:
         model_identity: OperatorModelIdentity,
         history: SqliteOperatorHistory | None = None,
         event_history_limit: int = 10_000,
+        live_executor: OperatorLiveExecutor | None = None,
+        live_interface_lister: Callable[[], tuple[CaptureInterface, ...]] = list_capture_interfaces,
+        live_interface_resolver: Callable[[str], CaptureInterface] = resolve_capture_interface,
+        live_stale_after_seconds: float = 120.0,
+        live_max_tracked_flows: int = 4_096,
     ) -> None:
         if event_history_limit < 1:
             raise OperatorServiceError("event history limit must be positive")
@@ -166,7 +203,13 @@ class OperatorReplayService:
         self._model_identity = model_identity
         self._history = history
         self._event_history_limit = event_history_limit
+        self._live_executor = live_executor
+        self._live_interface_lister = live_interface_lister
+        self._live_interface_resolver = live_interface_resolver
+        self._live_stale_after_seconds = live_stale_after_seconds
+        self._live_max_tracked_flows = live_max_tracked_flows
         self._records: dict[str, _ReplayRecord] = {}
+        self._live_records: dict[str, _LiveRecord] = {}
         self._lock = RLock()
 
     def health(self) -> dict[str, object]:
@@ -190,6 +233,92 @@ class OperatorReplayService:
                     "active": active,
                 },
             }
+
+    def list_live_interfaces(
+        self,
+    ) -> tuple[CaptureInterface, ...]:
+        """Return capture interfaces available to the live operator."""
+        try:
+            return self._live_interface_lister()
+        except SensorInterfaceError as error:
+            raise OperatorServiceError(str(error)) from error
+
+    def start_live(
+        self,
+        interface: str,
+    ) -> OperatorLiveSession:
+        """Create and start one owned live sensor session."""
+        if self._live_executor is None:
+            raise OperatorServiceError("live capture execution is not configured")
+
+        try:
+            resolved_interface = self._live_interface_resolver(interface)
+            configuration = OperatorLiveConfiguration(
+                interface=resolved_interface.name,
+                stale_after_seconds=self._live_stale_after_seconds,
+                max_tracked_flows=self._live_max_tracked_flows,
+            )
+        except (
+            SensorInterfaceError,
+            OperatorLiveSessionError,
+        ) as error:
+            raise OperatorServiceError(str(error)) from error
+
+        run_id = str(uuid4())
+        session = OperatorLiveSession(
+            run_id=run_id,
+            configuration=configuration,
+        )
+        record = _LiveRecord(
+            session=session,
+            stop_event=Event(),
+        )
+
+        with self._lock:
+            if any(
+                not current.session.state.is_terminal for current in self._live_records.values()
+            ):
+                raise OperatorLiveConflictError("a live sensor session is already active")
+
+            self._live_records[run_id] = record
+
+        thread = Thread(
+            target=self._execute_live,
+            args=(run_id,),
+            name=f"parallax-live-{run_id[:8]}",
+            daemon=True,
+        )
+        thread.start()
+
+        return session
+
+    def get_live(
+        self,
+        run_id: str,
+    ) -> OperatorLiveSession:
+        """Return current lifecycle state for one live session."""
+        with self._lock:
+            return self._require_live_record(run_id).session
+
+    def stop_live(
+        self,
+        run_id: str,
+    ) -> OperatorLiveSession:
+        """Request orderly termination of one live sensor session."""
+        with self._lock:
+            record = self._require_live_record(run_id)
+
+            if record.session.state.is_terminal:
+                raise OperatorLiveConflictError(f"live session {run_id!r} is already terminal")
+
+            if record.session.state in {
+                OperatorLiveState.STARTING,
+                OperatorLiveState.RUNNING,
+            }:
+                record.session = record.session.transition(OperatorLiveState.STOPPING)
+
+            record.stop_event.set()
+            return record.session
 
     def start_replay(
         self,
@@ -354,6 +483,45 @@ class OperatorReplayService:
             except ReplayControlError as error:
                 raise OperatorReplayConflictError(str(error)) from error
 
+    def _execute_live(
+        self,
+        run_id: str,
+    ) -> None:
+        with self._lock:
+            record = self._require_live_record(run_id)
+
+            if record.session.state is OperatorLiveState.STOPPING:
+                record.session = record.session.transition(OperatorLiveState.COMPLETED)
+                return
+            record.session = record.session.transition(OperatorLiveState.RUNNING)
+            configuration = record.session.configuration
+            stop_event = record.stop_event
+
+        executor = self._live_executor
+        assert executor is not None
+
+        try:
+            executor(
+                configuration,
+                stop_event,
+            )
+        except Exception as error:
+            with self._lock:
+                record = self._require_live_record(run_id)
+                record.session = record.session.fail(
+                    code="live_execution_error",
+                    message=str(error),
+                )
+            return
+
+        with self._lock:
+            record = self._require_live_record(run_id)
+
+            if record.session.state is OperatorLiveState.RUNNING:
+                record.session = record.session.transition(OperatorLiveState.STOPPING)
+
+            record.session = record.session.transition(OperatorLiveState.COMPLETED)
+
     def _execute_replay(
         self,
         run_id: str,
@@ -471,6 +639,15 @@ class OperatorReplayService:
             raise OperatorServiceError(f"capture {capture_name!r} does not exist")
 
         return source
+
+    def _require_live_record(
+        self,
+        run_id: str,
+    ) -> _LiveRecord:
+        try:
+            return self._live_records[run_id]
+        except KeyError as error:
+            raise OperatorLiveNotFoundError(f"live session {run_id!r} does not exist") from error
 
     def _require_record(self, run_id: str) -> _ReplayRecord:
         try:
