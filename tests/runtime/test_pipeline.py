@@ -123,7 +123,7 @@ def test_pipeline_composes_packet_through_prediction_events(
     config = WindowExtractionConfig()
     pipeline = PacketPredictionPipeline(
         run_id="replay-001",
-        capture_name="nonvpn_ssh_capture4.pcap",
+        capture_id="nonvpn_ssh_capture4.pcap",
         scorer=scorer,
         window_config=config,
     )
@@ -170,7 +170,7 @@ def test_finish_flushes_once_and_closes_pipeline(
 
     pipeline = PacketPredictionPipeline(
         run_id="replay-002",
-        capture_name="nonvpn_ssh_capture4.pcap",
+        capture_id="nonvpn_ssh_capture4.pcap",
         scorer=scorer,
     )
 
@@ -191,6 +191,6 @@ def test_rejects_empty_run_id() -> None:
     with pytest.raises(RuntimePipelineError, match="run ID must not be empty"):
         PacketPredictionPipeline(
             run_id="",
-            capture_name="nonvpn_ssh_capture4.pcap",
+            capture_id="nonvpn_ssh_capture4.pcap",
             scorer=FakeScorer(),
         )

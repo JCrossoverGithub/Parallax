@@ -367,7 +367,7 @@ class OperatorReplayService:
 
         pipeline = PacketPredictionPipeline(
             run_id=run_id,
-            capture_name=source.name,
+            capture_id=source.name,
             scorer=self._scorer,
         )
 

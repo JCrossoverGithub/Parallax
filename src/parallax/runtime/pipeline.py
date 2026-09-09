@@ -46,7 +46,7 @@ class PacketPredictionPipeline:
         self,
         *,
         run_id: str,
-        capture_name: str,
+        capture_id: str,
         scorer: RuntimeScorer,
         window_config: WindowExtractionConfig | None = None,
     ) -> None:
@@ -57,7 +57,7 @@ class PacketPredictionPipeline:
         self._scorer = scorer
         self._flow_tracker = BidirectionalFlowTracker()
         self._window_tracker = IncrementalWindowTracker(
-            capture_name,
+            capture_id,
             config=window_config,
         )
         self._finished = False

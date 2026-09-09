@@ -138,7 +138,7 @@ def _session(
 def _pipeline(source: Path) -> PacketPredictionPipeline:
     return PacketPredictionPipeline(
         run_id="replay-001",
-        capture_name=source.name,
+        capture_id=source.name,
         scorer=FakeScorer(),
         window_config=WindowExtractionConfig(
             window_seconds=1.0,
