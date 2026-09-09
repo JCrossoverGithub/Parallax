@@ -5,6 +5,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from parallax.operator.live import OperatorLiveState
 from parallax.replay import ReplayState
 
 
@@ -46,8 +47,44 @@ class OperatorHistoryRecord:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class OperatorLiveHistoryRecord:
+    """Persisted summary of one live sensor session."""
+
+    run_id: str
+    interface: str
+    state: OperatorLiveState
+    stale_after_seconds: float
+    max_tracked_flows: int
+    event_count: int
+    failure_code: str | None
+    failure_message: str | None
+
+    def as_dict(self) -> dict[str, object]:
+        """Return a JSON-compatible live-history record."""
+        failure: dict[str, str] | None = None
+
+        if self.failure_code is not None and self.failure_message is not None:
+            failure = {
+                "code": self.failure_code,
+                "message": self.failure_message,
+            }
+
+        return {
+            "run_id": self.run_id,
+            "state": self.state.value,
+            "configuration": {
+                "interface": self.interface,
+                "stale_after_seconds": self.stale_after_seconds,
+                "max_tracked_flows": self.max_tracked_flows,
+            },
+            "event_count": self.event_count,
+            "failure": failure,
+        }
+
+
 class SqliteOperatorHistory:
-    """Persist replay summaries and prediction events in local SQLite."""
+    """Persist replay and live operator history in local SQLite."""
 
     def __init__(self, path: str | Path) -> None:
         self._path = Path(path)
@@ -207,6 +244,155 @@ class SqliteOperatorHistory:
 
         return tuple(_load_event_payload(str(row["payload_json"])) for row in rows)
 
+    def save_live_session(
+        self,
+        record: OperatorLiveHistoryRecord,
+    ) -> None:
+        """Insert or update one live-session summary."""
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO live_sessions (
+                    run_id,
+                    interface,
+                    state,
+                    stale_after_seconds,
+                    max_tracked_flows,
+                    event_count,
+                    failure_code,
+                    failure_message
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(run_id) DO UPDATE SET
+                    interface = excluded.interface,
+                    state = excluded.state,
+                    stale_after_seconds = excluded.stale_after_seconds,
+                    max_tracked_flows = excluded.max_tracked_flows,
+                    event_count = excluded.event_count,
+                    failure_code = excluded.failure_code,
+                    failure_message = excluded.failure_message
+                """,
+                (
+                    record.run_id,
+                    record.interface,
+                    record.state.value,
+                    record.stale_after_seconds,
+                    record.max_tracked_flows,
+                    record.event_count,
+                    record.failure_code,
+                    record.failure_message,
+                ),
+            )
+
+    def save_live_event(
+        self,
+        run_id: str,
+        sequence: int,
+        payload: dict[str, object],
+    ) -> None:
+        """Persist one ordered live prediction event."""
+        if sequence < 1:
+            raise OperatorHistoryError("persisted live event sequence must be positive")
+
+        serialized = json.dumps(
+            payload,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO live_prediction_events (
+                    run_id,
+                    sequence,
+                    payload_json
+                )
+                VALUES (?, ?, ?)
+                """,
+                (
+                    run_id,
+                    sequence,
+                    serialized,
+                ),
+            )
+
+    def get_live_session(
+        self,
+        run_id: str,
+    ) -> OperatorLiveHistoryRecord | None:
+        """Load one persisted live-session summary."""
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT
+                    run_id,
+                    interface,
+                    state,
+                    stale_after_seconds,
+                    max_tracked_flows,
+                    event_count,
+                    failure_code,
+                    failure_message
+                FROM live_sessions
+                WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return _live_history_record(row)
+
+    def list_live_sessions(
+        self,
+        *,
+        limit: int = 100,
+    ) -> tuple[OperatorLiveHistoryRecord, ...]:
+        """List most recently created persisted live sessions."""
+        if limit < 1:
+            raise OperatorHistoryError("live history list limit must be positive")
+
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT
+                    run_id,
+                    interface,
+                    state,
+                    stale_after_seconds,
+                    max_tracked_flows,
+                    event_count,
+                    failure_code,
+                    failure_message
+                FROM live_sessions
+                ORDER BY rowid DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+
+        return tuple(_live_history_record(row) for row in rows)
+
+    def get_live_events(
+        self,
+        run_id: str,
+    ) -> tuple[dict[str, object], ...]:
+        """Load all persisted prediction events for one live session."""
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT payload_json
+                FROM live_prediction_events
+                WHERE run_id = ?
+                ORDER BY sequence
+                """,
+                (run_id,),
+            ).fetchall()
+
+        return tuple(_load_event_payload(str(row["payload_json"])) for row in rows)
+
     def _initialize(self) -> None:
         with self._connect() as connection:
             connection.executescript(
@@ -237,6 +423,31 @@ class SqliteOperatorHistory:
                 CREATE INDEX IF NOT EXISTS
                     prediction_events_run_id_sequence
                 ON prediction_events(run_id, sequence);
+
+                CREATE TABLE IF NOT EXISTS live_sessions (
+                    run_id TEXT PRIMARY KEY,
+                    interface TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    stale_after_seconds REAL NOT NULL,
+                    max_tracked_flows INTEGER NOT NULL,
+                    event_count INTEGER NOT NULL,
+                    failure_code TEXT,
+                    failure_message TEXT
+                );
+
+                CREATE TABLE IF NOT EXISTS live_prediction_events (
+                    run_id TEXT NOT NULL,
+                    sequence INTEGER NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    PRIMARY KEY (run_id, sequence),
+                    FOREIGN KEY (run_id)
+                        REFERENCES live_sessions(run_id)
+                        ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS
+                    live_prediction_events_run_id_sequence
+                ON live_prediction_events(run_id, sequence);
                 """
             )
 
@@ -266,6 +477,26 @@ def _history_record(
         source_sha256=str(row["source_sha256"]),
         state=state,
         time_scale=(None if row["time_scale"] is None else float(row["time_scale"])),
+        event_count=int(row["event_count"]),
+        failure_code=(None if row["failure_code"] is None else str(row["failure_code"])),
+        failure_message=(None if row["failure_message"] is None else str(row["failure_message"])),
+    )
+
+
+def _live_history_record(
+    row: sqlite3.Row,
+) -> OperatorLiveHistoryRecord:
+    try:
+        state = OperatorLiveState(str(row["state"]))
+    except ValueError as error:
+        raise OperatorHistoryError(f"persisted live state is invalid: {row['state']!r}") from error
+
+    return OperatorLiveHistoryRecord(
+        run_id=str(row["run_id"]),
+        interface=str(row["interface"]),
+        state=state,
+        stale_after_seconds=float(row["stale_after_seconds"]),
+        max_tracked_flows=int(row["max_tracked_flows"]),
         event_count=int(row["event_count"]),
         failure_code=(None if row["failure_code"] is None else str(row["failure_code"])),
         failure_message=(None if row["failure_message"] is None else str(row["failure_message"])),
