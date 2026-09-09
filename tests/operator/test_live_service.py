@@ -1084,3 +1084,41 @@ def test_structured_executor_failure_is_persisted(
 
     assert persisted.failure_code == "capture_error"
     assert persisted.failure_message == "sensor capture failed"
+
+
+def test_flow_capacity_failure_is_operator_visible(
+    tmp_path: Path,
+) -> None:
+    from parallax.operator.live import (
+        OperatorLiveExecutionError,
+    )
+
+    def fail(
+        run_id: str,
+        configuration: OperatorLiveConfiguration,
+        stop_event: Event,
+        handle_event: object,
+    ) -> None:
+        raise OperatorLiveExecutionError(
+            (f"runtime flow capacity reached: {configuration.max_tracked_flows}"),
+            code="flow_capacity_exceeded",
+        )
+
+    service = _service(
+        tmp_path,
+        executor=fail,
+    )
+
+    created = service.start_live("eth0")
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        OperatorLiveState.FAILED,
+    )
+
+    failed = service.get_live(created.run_id)
+
+    assert failed.failure is not None
+    assert failed.failure.code == "flow_capacity_exceeded"
+    assert failed.failure.message == "runtime flow capacity reached: 4096"

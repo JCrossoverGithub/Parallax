@@ -299,3 +299,59 @@ def test_operator_executor_classifies_unstructured_ipc_failure() -> None:
         )
 
     assert failure.value.code == "sensor_ipc_error"
+
+
+def test_operator_executor_reports_flow_capacity_exceeded() -> None:
+    from parallax.operator.live import (
+        OperatorLiveExecutionError,
+    )
+
+    stop_event = Event()
+
+    source = StoppingPacketSource(
+        [
+            PacketMetadata(
+                timestamp_seconds=1.0,
+                source_address="10.0.0.1",
+                source_port=50_000,
+                destination_address="10.0.0.2",
+                destination_port=443,
+                protocol=IP_PROTOCOL_TCP,
+                size=100,
+            ),
+            PacketMetadata(
+                timestamp_seconds=2.0,
+                source_address="10.0.0.1",
+                source_port=50_001,
+                destination_address="10.0.0.2",
+                destination_port=443,
+                protocol=IP_PROTOCOL_TCP,
+                size=100,
+            ),
+        ],
+        stop_event,
+    )
+
+    executor = OperatorLiveRuntimeExecutor(
+        FakeScorer(),
+        source_factory=lambda socket_path, interface: source,
+    )
+
+    with pytest.raises(
+        OperatorLiveExecutionError,
+        match="runtime flow capacity reached: 1",
+    ) as failure:
+        executor(
+            "live-capacity",
+            OperatorLiveConfiguration(
+                interface="eth0",
+                stale_after_seconds=120.0,
+                max_tracked_flows=1,
+            ),
+            stop_event,
+            lambda event: None,
+        )
+
+    assert failure.value.code == "flow_capacity_exceeded"
+    assert source.opened
+    assert source.closed

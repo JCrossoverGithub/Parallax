@@ -4,6 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 from threading import Event
 
+from parallax.data import RuntimeFlowCapacityError
 from parallax.operator.live import (
     OperatorLiveConfiguration,
     OperatorLiveExecutionError,
@@ -88,6 +89,11 @@ class OperatorLiveRuntimeExecutor:
                 stop_requested=stop_event.is_set,
                 handle_event=handle_event,
             )
+        except RuntimeFlowCapacityError as error:
+            raise OperatorLiveExecutionError(
+                str(error),
+                code="flow_capacity_exceeded",
+            ) from error
         except SensorIpcClientError as error:
             raise OperatorLiveExecutionError(
                 str(error),
