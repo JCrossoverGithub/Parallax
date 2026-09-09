@@ -5,21 +5,31 @@ import { Observable } from 'rxjs';
 import {
   ControlResponse,
   HealthResponse,
+  LiveControlResponse,
+  LiveEventsResponse,
+  LiveInterfacesResponse,
+  LiveSessionSnapshot,
+  LiveTerminalEvent,
   ReplayHistoryEventsResponse,
   ReplayHistoryRecord,
   ReplayHistoryResponse,
   ReplaySnapshot,
   ReplayTerminalEvent,
   RuntimePredictionEvent,
+  StartLiveRequest,
   StartReplayRequest,
 } from './operator.types';
 
-export interface ReplayStreamHandlers {
+export interface RuntimeStreamHandlers<TTerminal> {
   prediction: (event: RuntimePredictionEvent) => void;
-  terminal: (event: ReplayTerminalEvent) => void;
+  terminal: (event: TTerminal) => void;
   streamError: (detail: string) => void;
   connectionError: () => void;
 }
+
+export type ReplayStreamHandlers = RuntimeStreamHandlers<ReplayTerminalEvent>;
+
+export type LiveStreamHandlers = RuntimeStreamHandlers<LiveTerminalEvent>;
 
 @Injectable({
   providedIn: 'root',
@@ -31,21 +41,46 @@ export class OperatorApi {
     return this.http.get<HealthResponse>('/health');
   }
 
-  listHistory(limit = 100): Observable<ReplayHistoryResponse> {
-    return this.http.get<ReplayHistoryResponse>(
-      `/api/v1/history?limit=${limit}`,
+  listLiveInterfaces(): Observable<LiveInterfacesResponse> {
+    return this.http.get<LiveInterfacesResponse>('/api/v1/live/interfaces');
+  }
+
+  startLive(request: StartLiveRequest): Observable<LiveSessionSnapshot> {
+    return this.http.post<LiveSessionSnapshot>('/api/v1/live', request);
+  }
+
+  getLive(runId: string): Observable<LiveSessionSnapshot> {
+    return this.http.get<LiveSessionSnapshot>(`/api/v1/live/${encodeURIComponent(runId)}`);
+  }
+
+  getLiveEvents(runId: string): Observable<LiveEventsResponse> {
+    return this.http.get<LiveEventsResponse>(`/api/v1/live/${encodeURIComponent(runId)}/events`);
+  }
+
+  stopLive(runId: string): Observable<LiveControlResponse> {
+    return this.http.post<LiveControlResponse>(
+      `/api/v1/live/${encodeURIComponent(runId)}/stop`,
+      {},
     );
+  }
+
+  openLiveStream(runId: string, handlers: LiveStreamHandlers): EventSource {
+    return this.openStream(
+      `/api/v1/live/${encodeURIComponent(runId)}/stream`,
+      'live-terminal',
+      handlers,
+    );
+  }
+
+  listHistory(limit = 100): Observable<ReplayHistoryResponse> {
+    return this.http.get<ReplayHistoryResponse>(`/api/v1/history?limit=${limit}`);
   }
 
   getHistoryReplay(runId: string): Observable<ReplayHistoryRecord> {
-    return this.http.get<ReplayHistoryRecord>(
-      `/api/v1/history/${encodeURIComponent(runId)}`,
-    );
+    return this.http.get<ReplayHistoryRecord>(`/api/v1/history/${encodeURIComponent(runId)}`);
   }
 
-  getHistoryEvents(
-    runId: string,
-  ): Observable<ReplayHistoryEventsResponse> {
+  getHistoryEvents(runId: string): Observable<ReplayHistoryEventsResponse> {
     return this.http.get<ReplayHistoryEventsResponse>(
       `/api/v1/history/${encodeURIComponent(runId)}/events`,
     );
@@ -56,51 +91,53 @@ export class OperatorApi {
   }
 
   getReplay(runId: string): Observable<ReplaySnapshot> {
-    return this.http.get<ReplaySnapshot>(
-      `/api/v1/replays/${encodeURIComponent(runId)}`,
-    );
+    return this.http.get<ReplaySnapshot>(`/api/v1/replays/${encodeURIComponent(runId)}`);
   }
 
   pauseReplay(runId: string): Observable<ControlResponse> {
-    return this.control(runId, 'pause');
+    return this.replayControl(runId, 'pause');
   }
 
   resumeReplay(runId: string): Observable<ControlResponse> {
-    return this.control(runId, 'resume');
+    return this.replayControl(runId, 'resume');
   }
 
   cancelReplay(runId: string): Observable<ControlResponse> {
-    return this.control(runId, 'cancel');
+    return this.replayControl(runId, 'cancel');
   }
 
-  openReplayStream(
-    runId: string,
-    handlers: ReplayStreamHandlers,
-  ): EventSource {
-    const source = new EventSource(
+  openReplayStream(runId: string, handlers: ReplayStreamHandlers): EventSource {
+    return this.openStream(
       `/api/v1/replays/${encodeURIComponent(runId)}/stream`,
+      'replay-terminal',
+      handlers,
     );
+  }
+
+  private openStream<TTerminal>(
+    url: string,
+    terminalEventName: string,
+    handlers: RuntimeStreamHandlers<TTerminal>,
+  ): EventSource {
+    const source = new EventSource(url);
 
     source.addEventListener('prediction', (event) => {
       const message = event as MessageEvent<string>;
 
-      handlers.prediction(
-        JSON.parse(message.data) as RuntimePredictionEvent,
-      );
+      handlers.prediction(JSON.parse(message.data) as RuntimePredictionEvent);
     });
 
-    source.addEventListener('replay-terminal', (event) => {
+    source.addEventListener(terminalEventName, (event) => {
       const message = event as MessageEvent<string>;
 
-      handlers.terminal(
-        JSON.parse(message.data) as ReplayTerminalEvent,
-      );
+      handlers.terminal(JSON.parse(message.data) as TTerminal);
 
       source.close();
     });
 
     source.addEventListener('stream-error', (event) => {
       const message = event as MessageEvent<string>;
+
       const payload = JSON.parse(message.data) as {
         detail: string;
       };
@@ -116,7 +153,7 @@ export class OperatorApi {
     return source;
   }
 
-  private control(
+  private replayControl(
     runId: string,
     action: 'pause' | 'resume' | 'cancel',
   ): Observable<ControlResponse> {

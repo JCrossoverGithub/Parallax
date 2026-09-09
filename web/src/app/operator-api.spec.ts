@@ -1,26 +1,10 @@
 import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-} from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  OperatorApi,
-  ReplayStreamHandlers,
-} from './operator-api';
-import {
-  ReplayTerminalEvent,
-  RuntimePredictionEvent,
-} from './operator.types';
+import { OperatorApi, ReplayStreamHandlers } from './operator-api';
+import { ReplayTerminalEvent, RuntimePredictionEvent } from './operator.types';
 
 const PREDICTION: RuntimePredictionEvent = {
   schema_version: 'parallax-runtime-prediction-1',
@@ -35,13 +19,7 @@ const PREDICTION: RuntimePredictionEvent = {
     packet_count: 21,
   },
   classification: {
-    category_order: [
-      'Streaming',
-      'VoIP',
-      'Chat',
-      'C2',
-      'File Transfer',
-    ],
+    category_order: ['Streaming', 'VoIP', 'Chat', 'C2', 'File Transfer'],
     class_probabilities: [0.7, 0.1, 0.1, 0.05, 0.05],
     predicted_class_index: 0,
     predicted_category: 'Streaming',
@@ -66,20 +44,14 @@ class FakeEventSource {
   closed = false;
   onerror: (() => void) | null = null;
 
-  private readonly listeners = new Map<
-    string,
-    Array<(event: MessageEvent<string>) => void>
-  >();
+  private readonly listeners = new Map<string, Array<(event: MessageEvent<string>) => void>>();
 
   constructor(url: string | URL) {
     this.url = String(url);
     FakeEventSource.instances.push(this);
   }
 
-  addEventListener(
-    type: string,
-    listener: EventListenerOrEventListenerObject | null,
-  ): void {
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject | null): void {
     if (listener === null) {
       return;
     }
@@ -123,17 +95,10 @@ describe('OperatorApi', () => {
   beforeEach(() => {
     FakeEventSource.instances = [];
 
-    vi.stubGlobal(
-      'EventSource',
-      FakeEventSource as unknown as typeof EventSource,
-    );
+    vi.stubGlobal('EventSource', FakeEventSource as unknown as typeof EventSource);
 
     TestBed.configureTestingModule({
-      providers: [
-        OperatorApi,
-        provideHttpClient(),
-        provideHttpClientTesting(),
-      ],
+      providers: [OperatorApi, provideHttpClient(), provideHttpClientTesting()],
     });
 
     api = TestBed.inject(OperatorApi);
@@ -190,9 +155,7 @@ describe('OperatorApi', () => {
   it('loads a replay snapshot', () => {
     api.getReplay('run 001').subscribe();
 
-    const request = http.expectOne(
-      '/api/v1/replays/run%20001',
-    );
+    const request = http.expectOne('/api/v1/replays/run%20001');
 
     expect(request.request.method).toBe('GET');
     request.flush({});
@@ -202,25 +165,20 @@ describe('OperatorApi', () => {
     ['pause', 'pauseReplay'],
     ['resume', 'resumeReplay'],
     ['cancel', 'cancelReplay'],
-  ] as const)(
-    'sends the %s replay control',
-    (action, method) => {
-      api[method]('run-001').subscribe();
+  ] as const)('sends the %s replay control', (action, method) => {
+    api[method]('run-001').subscribe();
 
-      const request = http.expectOne(
-        `/api/v1/replays/run-001/${action}`,
-      );
+    const request = http.expectOne(`/api/v1/replays/run-001/${action}`);
 
-      expect(request.request.method).toBe('POST');
-      expect(request.request.body).toEqual({});
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({});
 
-      request.flush({
-        run_id: 'run-001',
-        action,
-        accepted: true,
-      });
-    },
-  );
+    request.flush({
+      run_id: 'run-001',
+      action,
+      accepted: true,
+    });
+  });
 
   it('delivers prediction events from SSE', () => {
     const prediction = vi.fn();
@@ -235,9 +193,7 @@ describe('OperatorApi', () => {
 
     const source = FakeEventSource.instances[0];
 
-    expect(source.url).toBe(
-      '/api/v1/replays/run%20001/stream',
-    );
+    expect(source.url).toBe('/api/v1/replays/run%20001/stream');
 
     source.emit('prediction', PREDICTION);
 
@@ -283,9 +239,7 @@ describe('OperatorApi', () => {
       detail: 'cursor expired',
     });
 
-    expect(streamError).toHaveBeenCalledWith(
-      'cursor expired',
-    );
+    expect(streamError).toHaveBeenCalledWith('cursor expired');
     expect(source.closed).toBe(true);
   });
 
@@ -309,9 +263,7 @@ describe('OperatorApi', () => {
       expect(response.replays).toEqual([]);
     });
 
-    const request = http.expectOne(
-      '/api/v1/history?limit=100',
-    );
+    const request = http.expectOne('/api/v1/history?limit=100');
 
     expect(request.request.method).toBe('GET');
 
@@ -323,9 +275,7 @@ describe('OperatorApi', () => {
   it('loads replay history with an explicit limit', () => {
     api.listHistory(25).subscribe();
 
-    const request = http.expectOne(
-      '/api/v1/history?limit=25',
-    );
+    const request = http.expectOne('/api/v1/history?limit=25');
 
     expect(request.request.method).toBe('GET');
 
@@ -337,9 +287,7 @@ describe('OperatorApi', () => {
   it('loads one historical replay', () => {
     api.getHistoryReplay('run 001').subscribe();
 
-    const request = http.expectOne(
-      '/api/v1/history/run%20001',
-    );
+    const request = http.expectOne('/api/v1/history/run%20001');
 
     expect(request.request.method).toBe('GET');
 
@@ -357,9 +305,7 @@ describe('OperatorApi', () => {
   it('loads historical prediction events', () => {
     api.getHistoryEvents('run 001').subscribe();
 
-    const request = http.expectOne(
-      '/api/v1/history/run%20001/events',
-    );
+    const request = http.expectOne('/api/v1/history/run%20001/events');
 
     expect(request.request.method).toBe('GET');
 
@@ -368,6 +314,210 @@ describe('OperatorApi', () => {
       events: [],
     });
   });
+});
 
+describe('OperatorApi live sensor', () => {
+  let api: OperatorApi;
+  let http: HttpTestingController;
 
+  beforeEach(() => {
+    FakeEventSource.instances = [];
+
+    vi.stubGlobal('EventSource', FakeEventSource as unknown as typeof EventSource);
+
+    TestBed.configureTestingModule({
+      providers: [OperatorApi, provideHttpClient(), provideHttpClientTesting()],
+    });
+
+    api = TestBed.inject(OperatorApi);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    http.verify();
+    vi.unstubAllGlobals();
+  });
+
+  it('loads live capture interfaces', () => {
+    api.listLiveInterfaces().subscribe((response) => {
+      expect(response.interfaces).toEqual([
+        {
+          index: 2,
+          name: 'eth0',
+        },
+      ]);
+    });
+
+    const request = http.expectOne('/api/v1/live/interfaces');
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      interfaces: [
+        {
+          index: 2,
+          name: 'eth0',
+        },
+      ],
+    });
+  });
+
+  it('starts a live sensor session', () => {
+    api
+      .startLive({
+        interface: 'eth0',
+      })
+      .subscribe((response) => {
+        expect(response.run_id).toBe('live-001');
+        expect(response.state).toBe('starting');
+      });
+
+    const request = http.expectOne('/api/v1/live');
+
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({
+      interface: 'eth0',
+    });
+
+    request.flush({
+      run_id: 'live-001',
+      state: 'starting',
+      configuration: {
+        interface: 'eth0',
+        stale_after_seconds: 120,
+        max_tracked_flows: 4096,
+      },
+      failure: null,
+    });
+  });
+
+  it('loads a live session snapshot', () => {
+    api.getLive('live 001').subscribe();
+
+    const request = http.expectOne('/api/v1/live/live%20001');
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      run_id: 'live 001',
+      state: 'running',
+      configuration: {
+        interface: 'eth0',
+        stale_after_seconds: 120,
+        max_tracked_flows: 4096,
+      },
+      failure: null,
+    });
+  });
+
+  it('loads retained live prediction events', () => {
+    api.getLiveEvents('live 001').subscribe();
+
+    const request = http.expectOne('/api/v1/live/live%20001/events');
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      run_id: 'live 001',
+      events: [],
+    });
+  });
+
+  it('stops a live sensor session', () => {
+    api.stopLive('live 001').subscribe((response) => {
+      expect(response.action).toBe('stop');
+      expect(response.state).toBe('stopping');
+    });
+
+    const request = http.expectOne('/api/v1/live/live%20001/stop');
+
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({});
+
+    request.flush({
+      run_id: 'live 001',
+      action: 'stop',
+      accepted: true,
+      state: 'stopping',
+    });
+  });
+
+  it('delivers live prediction events from SSE', () => {
+    const prediction = vi.fn();
+
+    api.openLiveStream('live 001', {
+      prediction,
+      terminal: vi.fn(),
+      streamError: vi.fn(),
+      connectionError: vi.fn(),
+    });
+
+    const source = FakeEventSource.instances.at(-1);
+
+    expect(source).toBeDefined();
+    expect(source?.url).toBe('/api/v1/live/live%20001/stream');
+
+    source?.emit('prediction', PREDICTION);
+
+    expect(prediction).toHaveBeenCalledWith(PREDICTION);
+  });
+
+  it('delivers live terminal events and closes SSE', () => {
+    const terminal = vi.fn();
+
+    api.openLiveStream('live-001', {
+      prediction: vi.fn(),
+      terminal,
+      streamError: vi.fn(),
+      connectionError: vi.fn(),
+    });
+
+    const source = FakeEventSource.instances.at(-1);
+
+    const event = {
+      run_id: 'live-001',
+      state: 'completed',
+    };
+
+    source?.emit('live-terminal', event);
+
+    expect(terminal).toHaveBeenCalledWith(event);
+    expect(source?.closed).toBe(true);
+  });
+
+  it('shares structured stream-error behavior for live SSE', () => {
+    const streamError = vi.fn();
+
+    api.openLiveStream('live-001', {
+      prediction: vi.fn(),
+      terminal: vi.fn(),
+      streamError,
+      connectionError: vi.fn(),
+    });
+
+    const source = FakeEventSource.instances.at(-1);
+
+    source?.emit('stream-error', {
+      detail: 'live cursor expired',
+    });
+
+    expect(streamError).toHaveBeenCalledWith('live cursor expired');
+
+    expect(source?.closed).toBe(true);
+  });
+
+  it('reports live EventSource connection failures', () => {
+    const connectionError = vi.fn();
+
+    api.openLiveStream('live-001', {
+      prediction: vi.fn(),
+      terminal: vi.fn(),
+      streamError: vi.fn(),
+      connectionError,
+    });
+
+    FakeEventSource.instances.at(-1)?.fail();
+
+    expect(connectionError).toHaveBeenCalledOnce();
+  });
 });

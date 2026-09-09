@@ -1,10 +1,6 @@
-export type ReplayState =
-  | 'created'
-  | 'running'
-  | 'paused'
-  | 'completed'
-  | 'failed'
-  | 'cancelled';
+export type ReplayState = 'created' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
+
+export type LiveState = 'starting' | 'running' | 'stopping' | 'completed' | 'failed';
 
 export interface ModelIdentity {
   model_bundle_sha256: string;
@@ -52,6 +48,33 @@ export interface ReplayHistoryResponse {
   replays: ReplayHistoryRecord[];
 }
 
+export interface LiveInterface {
+  index: number;
+  name: string;
+}
+
+export interface LiveInterfacesResponse {
+  interfaces: LiveInterface[];
+}
+
+export interface LiveConfiguration {
+  interface: string;
+  stale_after_seconds: number;
+  max_tracked_flows: number;
+}
+
+export interface LiveFailure {
+  code: string;
+  message: string;
+}
+
+export interface LiveSessionSnapshot {
+  run_id: string;
+  state: LiveState;
+  configuration: LiveConfiguration;
+  failure: LiveFailure | null;
+}
+
 export interface RuntimePredictionEvent {
   schema_version: string;
   run_id: string;
@@ -82,14 +105,22 @@ export interface RuntimePredictionEvent {
   provenance: ModelIdentity;
 }
 
-export interface ReplayHistoryEventsResponse {
+export interface PredictionEventsResponse {
   run_id: string;
   events: RuntimePredictionEvent[];
 }
 
+export type ReplayHistoryEventsResponse = PredictionEventsResponse;
+
+export type LiveEventsResponse = PredictionEventsResponse;
+
 export interface StartReplayRequest {
   capture: string;
   time_scale: number | null;
+}
+
+export interface StartLiveRequest {
+  interface: string;
 }
 
 export interface ControlResponse {
@@ -98,7 +129,16 @@ export interface ControlResponse {
   accepted: boolean;
 }
 
+export interface LiveControlResponse extends ControlResponse {
+  state: LiveState;
+}
+
 export interface ReplayTerminalEvent {
   run_id: string;
   state: ReplayState;
+}
+
+export interface LiveTerminalEvent {
+  run_id: string;
+  state: LiveState;
 }
