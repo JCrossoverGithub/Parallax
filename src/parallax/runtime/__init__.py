@@ -13,7 +13,16 @@ from parallax.runtime.pipeline import (
 __all__ = [
     "RUNTIME_PREDICTION_EVENT_SCHEMA_VERSION",
     "PacketPredictionPipeline",
+    "RuntimeEventHandler",
     "RuntimePipelineError",
     "RuntimePredictionEvent",
     "RuntimeScorer",
+    "RuntimeSessionHandler",
+    "run_packet_prediction_replay",
 ]
+
+from parallax.runtime.replay import (
+    RuntimeEventHandler,
+    RuntimeSessionHandler,
+    run_packet_prediction_replay,
+)
