@@ -23,6 +23,7 @@ dependencies = [
 
 [project.scripts]
 parallax = "parallax.cli:main"
+parallax-sensor = "parallax.sensor.service:main"
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]
