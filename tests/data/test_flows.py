@@ -114,7 +114,6 @@ def test_rejects_nonpositive_packet_sizes(size: int) -> None:
         group_bidirectional_flows([_packet(1.0, size=size)])
 
 
-
 def test_incremental_tracker_assigns_first_observed_orientation() -> None:
     tracker = BidirectionalFlowTracker()
 

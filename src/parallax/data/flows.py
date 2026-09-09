@@ -74,20 +74,13 @@ class BidirectionalFlowTracker:
         timestamp = packet.timestamp_seconds
 
         if not isfinite(timestamp):
-            raise FlowConstructionError(
-                f"packet {packet_number}: timestamp must be finite"
-            )
-        if (
-            self._previous_timestamp is not None
-            and timestamp < self._previous_timestamp
-        ):
+            raise FlowConstructionError(f"packet {packet_number}: timestamp must be finite")
+        if self._previous_timestamp is not None and timestamp < self._previous_timestamp:
             raise FlowConstructionError(
                 f"packet {packet_number}: timestamp precedes the previous packet"
             )
         if packet.size <= 0:
-            raise FlowConstructionError(
-                f"packet {packet_number}: size must be greater than zero"
-            )
+            raise FlowConstructionError(f"packet {packet_number}: size must be greater than zero")
 
         forward = packet.connection
         reverse = _reverse_connection(forward)
