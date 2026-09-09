@@ -2,7 +2,7 @@
 
 ## Current status
 
-Milestones 1 through 5 are complete. Milestone 6 is next.
+Milestones 1 through 5 are complete. Milestone 6 is in progress. The first live JPCMAIN capture and frozen-runtime inference path has been validated; operator integration and operational hardening remain.
 
 | Milestone | Status | Outcome |
 | --- | --- | --- |
@@ -11,7 +11,7 @@ Milestones 1 through 5 are complete. Milestone 6 is next.
 | 3. Raw-PCAP parity | Complete | Metadata-only parsing, bidirectional flows, PCAP windows, and exact selected-capture feature parity |
 | 4. Replayable runtime | Complete | Controlled replay through incremental features, frozen inference, and runtime prediction events |
 | 5. Operator layer | Complete | REST controls, SSE prediction streaming, Angular dashboard, durable replay history, and restart-safe history inspection |
-| 6. Live sensor and hardening | Next | Least-privilege live capture, bounded-resource validation, observability, and operational hardening |
+| 6. Live sensor and hardening | In progress | Least-privilege live capture, bounded-resource validation, observability, and operational hardening |
 
 ## Milestone 4 - Replayable runtime
 
