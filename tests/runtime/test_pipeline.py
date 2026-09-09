@@ -6,6 +6,8 @@ import pytest
 from parallax.data import (
     FlowPacketAssignment,
     PacketMetadata,
+    RuntimeFlowCapacityError,
+    RuntimeFlowTrackerConfig,
     RuntimeObservationWindow,
     WindowExtractionConfig,
 )
@@ -262,3 +264,51 @@ def test_pipeline_stats_track_packets_flows_events_and_finish_state() -> None:
         prediction_events_emitted=1,
         finished=True,
     )
+
+
+def test_pipeline_accepts_runtime_flow_resource_config() -> None:
+    pipeline = PacketPredictionPipeline(
+        run_id="bounded-run",
+        capture_id="live:eth0:bounded",
+        scorer=StatsScorerForConfig(),
+        flow_config=RuntimeFlowTrackerConfig(
+            stale_after_seconds=120.0,
+            max_tracked_flows=1,
+        ),
+    )
+
+    pipeline.push(
+        PacketMetadata(
+            timestamp_seconds=1.0,
+            source_address="10.0.0.1",
+            source_port=50_000,
+            destination_address="10.0.0.2",
+            destination_port=443,
+            protocol=6,
+            size=100,
+        )
+    )
+
+    with pytest.raises(
+        RuntimeFlowCapacityError,
+        match="runtime flow capacity reached: 1",
+    ):
+        pipeline.push(
+            PacketMetadata(
+                timestamp_seconds=2.0,
+                source_address="10.0.0.1",
+                source_port=50_001,
+                destination_address="10.0.0.2",
+                destination_port=443,
+                protocol=6,
+                size=100,
+            )
+        )
+
+
+class StatsScorerForConfig:
+    def score_feature(
+        self,
+        feature: RuntimeWindowFeature,
+    ) -> PrototypeRuntimePrediction:
+        return _prediction(feature.window_id)

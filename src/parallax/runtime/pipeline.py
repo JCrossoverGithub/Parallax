@@ -7,6 +7,7 @@ from parallax.data import (
     IncrementalWindowTracker,
     PacketMetadata,
     RuntimeFlowTracker,
+    RuntimeFlowTrackerConfig,
     RuntimeObservationWindow,
     WindowExtractionConfig,
 )
@@ -61,13 +62,16 @@ class PacketPredictionPipeline:
         capture_id: str,
         scorer: RuntimeScorer,
         window_config: WindowExtractionConfig | None = None,
+        flow_config: RuntimeFlowTrackerConfig | None = None,
     ) -> None:
         if not run_id:
             raise RuntimePipelineError("runtime pipeline run ID must not be empty")
 
         self._run_id = run_id
         self._scorer = scorer
-        self._flow_tracker = RuntimeFlowTracker()
+        self._flow_tracker = (
+            RuntimeFlowTracker() if flow_config is None else RuntimeFlowTracker(config=flow_config)
+        )
         self._window_tracker = IncrementalWindowTracker(
             capture_id,
             config=window_config,
