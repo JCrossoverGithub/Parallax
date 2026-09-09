@@ -2,7 +2,9 @@
 
 from parallax.data.flows import (
     BidirectionalFlow,
+    BidirectionalFlowTracker,
     FlowConstructionError,
+    FlowPacketAssignment,
     group_bidirectional_flows,
 )
 from parallax.data.inspection import (
@@ -25,6 +27,10 @@ from parallax.data.pcap import (
     iter_pcap_packet_metadata,
 )
 from parallax.data.pcap_windowing import extract_vnat_pcap_windows
+from parallax.data.runtime_windowing import (
+    IncrementalWindowTracker,
+    RuntimeWindowError,
+)
 from parallax.data.splitting import (
     CAPTURE_SPLIT_SCHEMA_VERSION,
     DATASET_PARTITIONS,
@@ -95,6 +101,7 @@ __all__ = [
     "WINDOW_SECONDS",
     "Application",
     "BidirectionalFlow",
+    "BidirectionalFlowTracker",
     "CaptureAssignment",
     "CaptureGroup",
     "CaptureMetadata",
@@ -104,10 +111,13 @@ __all__ = [
     "ConnectionKey",
     "DatasetPartition",
     "FlowConstructionError",
+    "FlowPacketAssignment",
+    "IncrementalWindowTracker",
     "ObservationWindow",
     "PacketMetadata",
     "PacketSizePolicy",
     "PcapReadError",
+    "RuntimeWindowError",
     "TrafficCategory",
     "VerifiedVnatDataframe",
     "VnatDatasetError",

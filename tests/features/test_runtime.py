@@ -155,3 +155,139 @@ def test_forwards_window_configuration(tmp_path: Path) -> None:
     assert release == []
     assert len(literal) == 1
     assert literal[0].packet_count == 20
+
+
+def test_incremental_windows_match_batch_pcap_features(tmp_path: Path) -> None:
+    from parallax.data import (
+        BidirectionalFlowTracker,
+        IncrementalWindowTracker,
+        WindowExtractionConfig,
+        WindowThresholdPolicy,
+        iter_pcap_packet_metadata,
+    )
+    from parallax.features.runtime import calculate_vnat_window_feature
+
+    source = tmp_path / "nonvpn_ssh_capture91.pcap"
+
+    records: list[tuple[float, bytes]] = []
+    for index in range(21):
+        records.append(
+            (
+                100.0 + index * 0.1,
+                _tcp_packet(
+                    source="10.101.1.100",
+                    destination="10.103.1.100",
+                    source_port=41_898,
+                    destination_port=22,
+                    payload=b"encrypted",
+                ),
+            )
+        )
+
+    for index in range(21):
+        records.append(
+            (
+                141.0 + index * 0.1,
+                _tcp_packet(
+                    source="10.101.1.100",
+                    destination="10.103.1.100",
+                    source_port=41_898,
+                    destination_port=22,
+                    payload=b"encrypted",
+                ),
+            )
+        )
+
+    _write_pcap(source, records)
+
+    window_config = WindowExtractionConfig(
+        window_seconds=40.96,
+        minimum_packets=20,
+        threshold_policy=WindowThresholdPolicy.RELEASE_COMPATIBLE,
+    )
+
+    expected = list(
+        extract_vnat_pcap_features(
+            source,
+            window_config=window_config,
+        )
+    )
+
+    flow_tracker = BidirectionalFlowTracker()
+    window_tracker = IncrementalWindowTracker(
+        source.name,
+        config=window_config,
+    )
+
+    actual = []
+
+    for packet in iter_pcap_packet_metadata(source):
+        assignment = flow_tracker.push(packet)
+
+        for window in window_tracker.push(assignment):
+            actual.append(calculate_vnat_window_feature(window))
+
+    actual.extend(calculate_vnat_window_feature(window) for window in window_tracker.finish())
+
+    assert [feature.window_id for feature in actual] == [feature.window_id for feature in expected]
+    assert [feature.packet_count for feature in actual] == [
+        feature.packet_count for feature in expected
+    ]
+
+    for actual_feature, expected_feature in zip(actual, expected, strict=True):
+        np.testing.assert_array_equal(
+            actual_feature.values,
+            expected_feature.values,
+        )
+
+
+def test_calculate_vnat_window_feature_preserves_window_provenance(
+    tmp_path: Path,
+) -> None:
+    from parallax.data import (
+        BidirectionalFlowTracker,
+        IncrementalWindowTracker,
+        WindowExtractionConfig,
+        WindowThresholdPolicy,
+        iter_pcap_packet_metadata,
+    )
+    from parallax.features.runtime import calculate_vnat_window_feature
+
+    source = tmp_path / "nonvpn_ssh_capture92.pcap"
+    _write_pcap(
+        source,
+        [
+            (
+                100.0 + index * 0.1,
+                _tcp_packet(
+                    source="10.101.1.100",
+                    destination="10.103.1.100",
+                    source_port=41_898,
+                    destination_port=22,
+                    payload=b"encrypted",
+                ),
+            )
+            for index in range(21)
+        ],
+    )
+
+    config = WindowExtractionConfig(
+        minimum_packets=20,
+        threshold_policy=WindowThresholdPolicy.RELEASE_COMPATIBLE,
+    )
+    flow_tracker = BidirectionalFlowTracker()
+    window_tracker = IncrementalWindowTracker(source.name, config=config)
+
+    for packet in iter_pcap_packet_metadata(source):
+        assert window_tracker.push(flow_tracker.push(packet)) == ()
+
+    window = window_tracker.finish()[0]
+    feature = calculate_vnat_window_feature(window)
+
+    assert feature.window_id == window.window_id
+    assert feature.capture == window.capture
+    assert feature.flow_id == window.flow_id
+    assert feature.window_index == window.window_index
+    assert feature.start_offset_seconds == window.start_offset_seconds
+    assert feature.end_offset_seconds == window.end_offset_seconds
+    assert feature.packet_count == window.packet_count

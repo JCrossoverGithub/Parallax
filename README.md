@@ -13,18 +13,23 @@ representation, versioned Parquet exports, deterministic capture-grouped partiti
 quality gates, a manifest-bound modeling loader, deterministic reference baselines, and a frozen
 prototypical embedding model with relative-Mahalanobis OOD calibration. The candidate completed
 one checksum-bound test evaluation after its model, calibration, thresholds, and reporting policy
-were frozen. Raw-PCAP ingestion, deterministic bidirectional flow reconstruction, shared
-capture-aligned windowing, and runtime feature construction are now implemented and have exact
-feature parity on selected VNAT captures. Timed replay, runtime inference, persistence, event
-delivery, the operations dashboard, and live monitoring are not yet implemented.
+were frozen. Raw-PCAP ingestion, deterministic bidirectional flow reconstruction, incremental
+capture-aligned windowing, shared runtime feature construction, controlled replay, checksum-bound
+runtime inference, and an operator-facing prediction-event contract are implemented. Selected
+VNAT SSH and VoIP captures have exact batch/runtime feature parity. Persistence, the external API
+and event transport, the operations dashboard, and live monitoring are not yet implemented.
 
-The raw-PCAP feature path now reaches release-compatible feature vectors. The next operational
-target extends that verified path into a deterministic replay pipeline:
+Milestone 4 completes the deterministic replay runtime through operator-facing prediction
+events. The next operational target is the Milestone 5 operator layer:
 
 ```text
-VNAT PCAP -> bidirectional flows -> observation windows -> features
-          -> category prediction + confidence + OOD score -> operations dashboard
+VNAT PCAP -> controlled replay -> flows -> windows -> features
+          -> frozen model + OOD calibration -> RuntimePredictionEvent
+          -> API/event service -> operations dashboard
 ```
+
+The first Milestone 5 vertical slice will start one replay from the operator interface and display
+real runtime prediction events as they are produced.
 
 OOD means out of distribution. It is reported independently from ordinary predictive
 confidence so unfamiliar traffic is not silently presented as a trustworthy known category.
@@ -143,6 +148,7 @@ uv build --no-sources
 ## Documentation
 
 - [Engineering design](docs/engineering-design.md)
+- [Project roadmap](docs/roadmap.md)
 - [Reproducible data pipeline](docs/data-pipeline.md)
 - [Capture-grouped splitting](docs/capture-splitting.md)
 - [Initial validation baselines](docs/baseline-modeling.md)

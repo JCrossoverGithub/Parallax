@@ -157,7 +157,7 @@ def _iter_capture_windows(
             np.int64
         )
 
-        flow_id = _make_flow_id(capture.capture_id, normalized_connection)
+        flow_id = make_flow_id(capture.capture_id, normalized_connection)
         boundaries = (np.flatnonzero(np.diff(window_indices)) + 1).tolist()
         start = 0
 
@@ -250,7 +250,7 @@ def _validate_packet_arrays(
     return timestamp_array, normalized_sizes, integer_directions.astype(np.int8, copy=False)
 
 
-def _make_flow_id(capture_id: str, connection: ConnectionKey) -> str:
+def make_flow_id(capture_id: str, connection: ConnectionKey) -> str:
     encoded = "\0".join((capture_id, *(str(item) for item in connection))).encode()
     return sha256(encoded).hexdigest()[:FLOW_ID_HEX_LENGTH]
 
