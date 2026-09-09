@@ -71,6 +71,17 @@ class PacketPredictionPipeline:
         if not run_id:
             raise RuntimePipelineError("runtime pipeline run ID must not be empty")
 
+        if flow_config is not None and flow_config.stale_after_seconds is not None:
+            selected_window_config = (
+                window_config if window_config is not None else WindowExtractionConfig()
+            )
+
+            if flow_config.stale_after_seconds < selected_window_config.window_seconds:
+                raise RuntimePipelineError(
+                    "stale flow timeout must be greater than or equal to "
+                    "the observation window duration"
+                )
+
         self._run_id = run_id
         self._scorer = scorer
         self._flow_tracker = (

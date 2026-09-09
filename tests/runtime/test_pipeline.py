@@ -335,3 +335,25 @@ class StatsScorerForConfig:
         feature: RuntimeWindowFeature,
     ) -> PrototypeRuntimePrediction:
         return _prediction(feature.window_id)
+
+
+def test_rejects_stale_timeout_shorter_than_window_duration() -> None:
+    with pytest.raises(
+        RuntimePipelineError,
+        match=(
+            "stale flow timeout must be greater than or equal to the observation window duration"
+        ),
+    ):
+        PacketPredictionPipeline(
+            run_id="invalid-resource-lifetime",
+            capture_id="live:eth0:invalid-resource-lifetime",
+            scorer=StatsScorerForConfig(),
+            window_config=WindowExtractionConfig(
+                window_seconds=10.0,
+                minimum_packets=1,
+            ),
+            flow_config=RuntimeFlowTrackerConfig(
+                stale_after_seconds=9.999,
+                max_tracked_flows=128,
+            ),
+        )

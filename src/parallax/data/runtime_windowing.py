@@ -78,6 +78,11 @@ class IncrementalWindowTracker:
         self._packet_number = 0
         self._finished = False
 
+    @property
+    def buffered_flow_count(self) -> int:
+        """Return the number of flow buffers retained for the current window."""
+        return len(self._buffers)
+
     def push(
         self,
         assignment: FlowPacketAssignment,
