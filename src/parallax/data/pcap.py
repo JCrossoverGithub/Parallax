@@ -8,12 +8,22 @@ import dpkt  # type: ignore[import-untyped]
 
 from parallax.data.packets import (
     IP_PROTOCOL_ICMP as IP_PROTOCOL_ICMP,
+)
+from parallax.data.packets import (
     IP_PROTOCOL_TCP as IP_PROTOCOL_TCP,
+)
+from parallax.data.packets import (
     IP_PROTOCOL_UDP as IP_PROTOCOL_UDP,
+)
+from parallax.data.packets import (
     PacketDecodeError,
-    PacketMetadata as PacketMetadata,
-    PacketSizePolicy as PacketSizePolicy,
     decode_raw_ipv4_packet,
+)
+from parallax.data.packets import (
+    PacketMetadata as PacketMetadata,
+)
+from parallax.data.packets import (
+    PacketSizePolicy as PacketSizePolicy,
 )
 
 PCAP_LINKTYPE_RAW_IP: Final = 101
