@@ -76,7 +76,12 @@ class OperatorLiveConflictError(OperatorServiceError):
 
 
 OperatorLiveExecutor = Callable[
-    [str, OperatorLiveConfiguration, Event],
+    [
+        str,
+        OperatorLiveConfiguration,
+        Event,
+        Callable[[RuntimePredictionEvent], None],
+    ],
     object,
 ]
 
@@ -164,6 +169,16 @@ class OperatorEventBatch:
     state: ReplayState
 
 
+@dataclass(frozen=True, slots=True)
+class OperatorLiveEventBatch:
+    """Prediction events available after one live-session cursor."""
+
+    run_id: str
+    events: tuple[OperatorEventRecord, ...]
+    last_sequence: int
+    state: OperatorLiveState
+
+
 @dataclass(slots=True)
 class _ReplayRecord:
     session: ReplaySession
@@ -176,6 +191,8 @@ class _ReplayRecord:
 class _LiveRecord:
     session: OperatorLiveSession
     stop_event: Event
+    events: deque[RuntimePredictionEvent]
+    total_events: int = 0
 
 
 class OperatorReplayService:
@@ -272,6 +289,7 @@ class OperatorReplayService:
         record = _LiveRecord(
             session=session,
             stop_event=Event(),
+            events=deque(maxlen=self._event_history_limit),
         )
 
         with self._lock:
@@ -299,6 +317,55 @@ class OperatorReplayService:
         """Return current lifecycle state for one live session."""
         with self._lock:
             return self._require_live_record(run_id).session
+
+    def get_live_events(
+        self,
+        run_id: str,
+    ) -> tuple[dict[str, object], ...]:
+        """Return retained prediction events for one live session."""
+        with self._lock:
+            record = self._require_live_record(run_id)
+            return tuple(event.as_dict() for event in record.events)
+
+    def get_live_event_batch(
+        self,
+        run_id: str,
+        *,
+        after_sequence: int = 0,
+    ) -> OperatorLiveEventBatch:
+        """Return retained live events following one stream cursor."""
+        if after_sequence < 0:
+            raise OperatorEventCursorError("event sequence cursor must not be negative")
+
+        with self._lock:
+            record = self._require_live_record(run_id)
+
+            if after_sequence > record.total_events:
+                raise OperatorEventCursorError("event sequence cursor is ahead of the live session")
+
+            first_sequence = record.total_events - len(record.events) + 1
+
+            if record.events and after_sequence < first_sequence - 1:
+                raise OperatorEventCursorError("requested events are no longer retained")
+
+            events = tuple(
+                OperatorEventRecord(
+                    sequence=sequence,
+                    payload=event.as_dict(),
+                )
+                for sequence, event in enumerate(
+                    record.events,
+                    start=first_sequence,
+                )
+                if sequence > after_sequence
+            )
+
+            return OperatorLiveEventBatch(
+                run_id=run_id,
+                events=events,
+                last_sequence=record.total_events,
+                state=record.session.state,
+            )
 
     def stop_live(
         self,
@@ -483,6 +550,16 @@ class OperatorReplayService:
             except ReplayControlError as error:
                 raise OperatorReplayConflictError(str(error)) from error
 
+    def _append_live_event(
+        self,
+        run_id: str,
+        event: RuntimePredictionEvent,
+    ) -> None:
+        with self._lock:
+            record = self._require_live_record(run_id)
+            record.events.append(event)
+            record.total_events += 1
+
     def _execute_live(
         self,
         run_id: str,
@@ -505,6 +582,10 @@ class OperatorReplayService:
                 run_id,
                 configuration,
                 stop_event,
+                lambda event: self._append_live_event(
+                    run_id,
+                    event,
+                ),
             )
         except Exception as error:
             with self._lock:

@@ -6,11 +6,14 @@ from typing import cast
 
 import pytest
 
+from parallax.modeling.baselines import CATEGORY_LABELS
+from parallax.modeling.runtime import PrototypeRuntimePrediction
 from parallax.operator.live import (
     OperatorLiveConfiguration,
     OperatorLiveState,
 )
 from parallax.operator.service import (
+    OperatorEventCursorError,
     OperatorLiveConflictError,
     OperatorLiveExecutor,
     OperatorLiveNotFoundError,
@@ -18,7 +21,10 @@ from parallax.operator.service import (
     OperatorReplayService,
     OperatorServiceError,
 )
-from parallax.runtime import RuntimeScorer
+from parallax.runtime import (
+    RuntimePredictionEvent,
+    RuntimeScorer,
+)
 from parallax.sensor import (
     CaptureInterface,
     SensorInterfaceError,
@@ -55,12 +61,14 @@ def _service(
     executor: OperatorLiveExecutor | None,
     interface_lister: Callable[[], tuple[CaptureInterface, ...]] = _interfaces,
     interface_resolver: Callable[[str], CaptureInterface] = _resolve_interface,
+    event_history_limit: int = 10_000,
 ) -> OperatorReplayService:
     return OperatorReplayService(
         capture_root=tmp_path,
         scorer=cast(RuntimeScorer, object()),
         model_identity=_identity(),
         live_executor=executor,
+        event_history_limit=event_history_limit,
         live_interface_lister=interface_lister,
         live_interface_resolver=interface_resolver,
     )
@@ -87,7 +95,7 @@ def test_lists_available_live_interfaces(
 ) -> None:
     service = _service(
         tmp_path,
-        executor=lambda run_id, configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event, handle_event: None,
     )
 
     assert service.list_live_interfaces() == _interfaces()
@@ -101,7 +109,7 @@ def test_interface_discovery_error_becomes_service_error(
 
     service = _service(
         tmp_path,
-        executor=lambda run_id, configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event, handle_event: None,
         interface_lister=fail,
     )
 
@@ -132,7 +140,7 @@ def test_rejects_unknown_live_interface(
 ) -> None:
     service = _service(
         tmp_path,
-        executor=lambda run_id, configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event, handle_event: None,
     )
 
     with pytest.raises(
@@ -151,6 +159,7 @@ def test_starts_stops_and_completes_owned_live_session(
         run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
+        handle_event: object,
     ) -> None:
         assert configuration.interface == "eth0"
         assert configuration.stale_after_seconds == 120.0
@@ -197,6 +206,7 @@ def test_only_one_live_session_may_be_active(
         run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
+        handle_event: object,
     ) -> None:
         entered.set()
         stop_event.wait(timeout=2.0)
@@ -229,7 +239,7 @@ def test_unknown_live_session_is_not_found(
 ) -> None:
     service = _service(
         tmp_path,
-        executor=lambda run_id, configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event, handle_event: None,
     )
 
     with pytest.raises(
@@ -250,7 +260,7 @@ def test_terminal_live_session_rejects_stop(
 ) -> None:
     service = _service(
         tmp_path,
-        executor=lambda run_id, configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event, handle_event: None,
     )
 
     created = service.start_live("eth0")
@@ -273,7 +283,7 @@ def test_normal_executor_return_completes_session(
 ) -> None:
     service = _service(
         tmp_path,
-        executor=lambda run_id, configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event, handle_event: None,
     )
 
     created = service.start_live("eth0")
@@ -294,6 +304,7 @@ def test_executor_failure_becomes_structured_live_failure(
         run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
+        handle_event: object,
     ) -> None:
         raise RuntimeError("synthetic live failure")
 
@@ -327,6 +338,7 @@ def test_stop_while_starting_prevents_executor_start(
         run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
+        handle_event: object,
     ) -> None:
         executor_called.set()
 
@@ -369,6 +381,7 @@ def test_repeated_stop_request_remains_stopping(
         run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
+        handle_event: object,
     ) -> None:
         raise AssertionError("executor must not start")
 
@@ -396,3 +409,170 @@ def test_repeated_stop_request_remains_stopping(
     service._execute_live(created.run_id)
 
     assert service.get_live(created.run_id).state is OperatorLiveState.COMPLETED
+
+
+def test_live_session_retains_prediction_events(
+    tmp_path: Path,
+) -> None:
+    def execute(
+        run_id: str,
+        configuration: OperatorLiveConfiguration,
+        stop_event: Event,
+        handle_event: object,
+    ) -> None:
+        callback = cast(
+            Callable[[RuntimePredictionEvent], None],
+            handle_event,
+        )
+
+        prediction = PrototypeRuntimePrediction(
+            window_id="window-001",
+            capture_id=f"live:eth0:{run_id}",
+            flow_id="flow-001",
+            window_index=0,
+            start_offset_seconds=0.0,
+            end_offset_seconds=10.0,
+            packet_count=21,
+            category_order=CATEGORY_LABELS,
+            class_probabilities=(
+                0.7,
+                0.1,
+                0.1,
+                0.05,
+                0.05,
+            ),
+            predicted_class_index=0,
+            predicted_category=CATEGORY_LABELS[0],
+            raw_confidence=0.7,
+            relative_mahalanobis_distance=1.0,
+            ood_score=0.1,
+            model_bundle_sha256="a" * 64,
+            calibration_artifact_sha256="b" * 64,
+            feature_artifact_sha256="c" * 64,
+            split_manifest_sha256="d" * 64,
+        )
+
+        callback(
+            RuntimePredictionEvent(
+                run_id=run_id,
+                prediction=prediction,
+            )
+        )
+
+    service = _service(
+        tmp_path,
+        executor=execute,
+    )
+
+    created = service.start_live("eth0")
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        OperatorLiveState.COMPLETED,
+    )
+
+    events = service.get_live_events(created.run_id)
+
+    assert len(events) == 1
+    assert events[0]["run_id"] == created.run_id
+
+
+def test_live_event_batch_sequences_and_validates_cursor(
+    tmp_path: Path,
+) -> None:
+    def execute(
+        run_id: str,
+        configuration: OperatorLiveConfiguration,
+        stop_event: Event,
+        handle_event: object,
+    ) -> None:
+        callback = cast(
+            Callable[[RuntimePredictionEvent], None],
+            handle_event,
+        )
+
+        for index in range(3):
+            prediction = PrototypeRuntimePrediction(
+                window_id=f"window-{index}",
+                capture_id=f"live:eth0:{run_id}",
+                flow_id="flow-001",
+                window_index=index,
+                start_offset_seconds=float(index * 10),
+                end_offset_seconds=float((index + 1) * 10),
+                packet_count=21,
+                category_order=CATEGORY_LABELS,
+                class_probabilities=(
+                    0.7,
+                    0.1,
+                    0.1,
+                    0.05,
+                    0.05,
+                ),
+                predicted_class_index=0,
+                predicted_category=CATEGORY_LABELS[0],
+                raw_confidence=0.7,
+                relative_mahalanobis_distance=1.0,
+                ood_score=0.1,
+                model_bundle_sha256="a" * 64,
+                calibration_artifact_sha256="b" * 64,
+                feature_artifact_sha256="c" * 64,
+                split_manifest_sha256="d" * 64,
+            )
+
+            callback(
+                RuntimePredictionEvent(
+                    run_id=run_id,
+                    prediction=prediction,
+                )
+            )
+
+    service = _service(
+        tmp_path,
+        executor=execute,
+        event_history_limit=2,
+    )
+
+    created = service.start_live("eth0")
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        OperatorLiveState.COMPLETED,
+    )
+
+    batch = service.get_live_event_batch(
+        created.run_id,
+        after_sequence=1,
+    )
+
+    assert [event.sequence for event in batch.events] == [2, 3]
+    assert batch.last_sequence == 3
+    assert batch.state is OperatorLiveState.COMPLETED
+
+    with pytest.raises(
+        OperatorEventCursorError,
+        match="no longer retained",
+    ):
+        service.get_live_event_batch(
+            created.run_id,
+            after_sequence=0,
+        )
+
+    with pytest.raises(
+        OperatorEventCursorError,
+        match="ahead of the live session",
+    ):
+        service.get_live_event_batch(
+            created.run_id,
+            after_sequence=4,
+        )
+
+    with pytest.raises(
+        OperatorEventCursorError,
+        match="must not be negative",
+    ):
+        service.get_live_event_batch(
+            created.run_id,
+            after_sequence=-1,
+        )

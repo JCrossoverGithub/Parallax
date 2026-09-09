@@ -15,6 +15,7 @@ from parallax.operator import (
     OperatorLiveConfiguration,
     OperatorLiveRuntimeExecutor,
 )
+from parallax.runtime import RuntimePredictionEvent
 from parallax.sensor import (
     CaptureInterface,
     LiveEthernetCapture,
@@ -164,6 +165,8 @@ def test_operator_executor_runs_real_live_pipeline() -> None:
         capture_factory=make_capture,
     )
 
+    events: list[RuntimePredictionEvent] = []
+
     summary = executor(
         run_id,
         OperatorLiveConfiguration(
@@ -172,6 +175,7 @@ def test_operator_executor_runs_real_live_pipeline() -> None:
             max_tracked_flows=4_096,
         ),
         stop_event,
+        events.append,
     )
 
     assert summary.packets_processed == 21

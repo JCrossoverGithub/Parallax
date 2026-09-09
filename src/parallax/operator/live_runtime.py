@@ -7,6 +7,7 @@ from parallax.operator.live import OperatorLiveConfiguration
 from parallax.runtime import (
     LiveRuntimeSummary,
     PacketPredictionPipeline,
+    RuntimePredictionEvent,
     RuntimeScorer,
     run_live_packet_predictions,
 )
@@ -48,6 +49,10 @@ class OperatorLiveRuntimeExecutor:
         run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
+        handle_event: Callable[
+            [RuntimePredictionEvent],
+            None,
+        ],
     ) -> LiveRuntimeSummary:
         """Run one live sensor until the operator requests termination."""
         interface = self._interface_resolver(configuration.interface)
@@ -65,5 +70,5 @@ class OperatorLiveRuntimeExecutor:
             source,
             pipeline=pipeline,
             stop_requested=stop_event.is_set,
-            handle_event=lambda event: None,
+            handle_event=handle_event,
         )
