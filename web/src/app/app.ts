@@ -1,28 +1,23 @@
 import { DecimalPipe } from '@angular/common';
-import {
-  Component,
-  OnDestroy,
-  computed,
-  inject,
-  signal,
-} from '@angular/core';
+import { Component, OnDestroy, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 
 import { OperatorApi } from './operator-api';
 import {
   HealthResponse,
+  LiveInterface,
+  LiveSessionSnapshot,
   ReplayHistoryRecord,
   ReplaySnapshot,
   RuntimePredictionEvent,
 } from './operator.types';
 
+type Workspace = 'live' | 'replay' | 'history';
+
 @Component({
   selector: 'app-root',
-  imports: [
-    DecimalPipe,
-    FormsModule,
-  ],
+  imports: [DecimalPipe, FormsModule],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
@@ -30,19 +25,31 @@ export class App implements OnDestroy {
   private readonly api = inject(OperatorApi);
 
   readonly health = signal<HealthResponse | null>(null);
+
   readonly replay = signal<ReplaySnapshot | null>(null);
-  readonly predictions = signal<RuntimePredictionEvent[]>([]);
+  readonly live = signal<LiveSessionSnapshot | null>(null);
+
+  readonly replayPredictions = signal<RuntimePredictionEvent[]>([]);
+  readonly livePredictions = signal<RuntimePredictionEvent[]>([]);
+  readonly historyPredictions = signal<RuntimePredictionEvent[]>([]);
+
   readonly history = signal<ReplayHistoryRecord[]>([]);
+  readonly liveInterfaces = signal<LiveInterface[]>([]);
+
+  readonly workspace = signal<Workspace>('live');
 
   readonly error = signal<string | null>(null);
   readonly streamConnected = signal(false);
   readonly busy = signal(false);
+  readonly liveBusy = signal(false);
   readonly historyBusy = signal(false);
+
   readonly selectedHistoryRunId = signal<string | null>(null);
 
   capture = 'nonvpn_ssh_capture4.pcap';
   timeScale = 1;
   maximumSpeed = false;
+  liveInterface = '';
 
   private eventSource: EventSource | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -54,41 +61,140 @@ export class App implements OnDestroy {
 
     const state = this.replay()?.state;
 
-    return (
-      state === 'created' ||
-      state === 'running' ||
-      state === 'paused'
-    );
+    return state === 'created' || state === 'running' || state === 'paused';
   });
+
+  readonly liveActive = computed(() => {
+    const state = this.live()?.state;
+
+    return state === 'starting' || state === 'running' || state === 'stopping';
+  });
+
+  readonly anyActive = computed(() => this.active() || this.liveActive());
 
   readonly canPause = computed(
     () =>
+      this.workspace() === 'replay' &&
       this.selectedHistoryRunId() === null &&
       this.replay()?.state === 'running',
   );
 
   readonly canResume = computed(
     () =>
+      this.workspace() === 'replay' &&
       this.selectedHistoryRunId() === null &&
       this.replay()?.state === 'paused',
   );
 
+  readonly predictions = computed(() => {
+    switch (this.workspace()) {
+      case 'live':
+        return this.livePredictions();
+
+      case 'history':
+        return this.historyPredictions();
+
+      case 'replay':
+        return this.replayPredictions();
+    }
+  });
+
   readonly latestPrediction = computed(() => {
     const values = this.predictions();
 
-    return values.length === 0
-      ? null
-      : values[values.length - 1];
+    return values.length === 0 ? null : values[values.length - 1];
+  });
+
+  readonly currentState = computed(() => {
+    if (this.workspace() === 'live') {
+      return this.live()?.state ?? 'idle';
+    }
+
+    return this.replay()?.state ?? 'idle';
+  });
+
+  readonly currentRunId = computed(() => {
+    if (this.workspace() === 'live') {
+      return this.live()?.run_id ?? null;
+    }
+
+    return this.replay()?.run_id ?? null;
+  });
+
+  readonly currentSource = computed(() => {
+    if (this.workspace() === 'live') {
+      return this.live()?.configuration.interface ?? this.liveInterface ?? '—';
+    }
+
+    return this.replay()?.source_id ?? '—';
+  });
+
+  readonly workspaceTitle = computed(() => {
+    switch (this.workspace()) {
+      case 'live':
+        return 'Live Sensor';
+
+      case 'replay':
+        return 'Replay Lab';
+
+      case 'history':
+        return 'Session History';
+    }
+  });
+
+  readonly workspaceDescription = computed(() => {
+    switch (this.workspace()) {
+      case 'live':
+        return 'Observe supported network metadata and runtime classifications as traffic arrives.';
+
+      case 'replay':
+        return 'Reproduce and inspect frozen PCAP workloads through the same prediction runtime.';
+
+      case 'history':
+        return 'Review persisted replay sessions, predictions, and model provenance.';
+    }
+  });
+
+  readonly eventChannelState = computed(() => {
+    if (this.streamConnected()) {
+      return 'receiving';
+    }
+
+    if (this.anyActive()) {
+      return 'listening';
+    }
+
+    return 'idle';
+  });
+
+  readonly modelFingerprint = computed(() => {
+    const sha = this.health()?.active_model.model_bundle_sha256;
+
+    return sha ? sha.slice(0, 12) : 'unavailable';
   });
 
   constructor() {
     this.loadHealth();
     this.loadHistory();
+    this.loadLiveInterfaces();
   }
 
   ngOnDestroy(): void {
     this.closeStream();
     this.stopPolling();
+  }
+
+  selectWorkspace(workspace: Workspace): void {
+    if (this.anyActive() && workspace !== this.workspace()) {
+      return;
+    }
+
+    this.workspace.set(workspace);
+    this.error.set(null);
+
+    if (workspace !== 'history') {
+      this.selectedHistoryRunId.set(null);
+    }
   }
 
   loadHealth(): void {
@@ -97,9 +203,26 @@ export class App implements OnDestroy {
         this.health.set(health);
       },
       error: () => {
-        this.error.set(
-          'Unable to reach the Parallax operator service.',
-        );
+        this.error.set('Unable to reach the Parallax operator service.');
+      },
+    });
+  }
+
+  loadLiveInterfaces(): void {
+    this.api.listLiveInterfaces().subscribe({
+      next: (response) => {
+        this.liveInterfaces.set(response.interfaces);
+
+        if (!this.liveInterface) {
+          const preferred =
+            response.interfaces.find((networkInterface) => networkInterface.name !== 'lo') ??
+            response.interfaces[0];
+
+          this.liveInterface = preferred?.name ?? '';
+        }
+      },
+      error: (response) => {
+        this.error.set(response?.error?.detail ?? 'Unable to discover capture interfaces.');
       },
     });
   }
@@ -115,13 +238,82 @@ export class App implements OnDestroy {
     });
   }
 
+  startLive(): void {
+    if (!this.liveInterface || this.liveBusy() || this.active()) {
+      return;
+    }
+
+    this.workspace.set('live');
+    this.liveBusy.set(true);
+    this.error.set(null);
+    this.selectedHistoryRunId.set(null);
+    this.livePredictions.set([]);
+
+    this.closeStream();
+    this.stopPolling();
+
+    this.api
+      .startLive({
+        interface: this.liveInterface,
+      })
+      .subscribe({
+        next: (session) => {
+          this.live.set(session);
+          this.liveBusy.set(false);
+
+          this.connectLiveStream(session.run_id);
+          this.startLivePolling(session.run_id);
+          this.loadHealth();
+        },
+        error: (response) => {
+          this.liveBusy.set(false);
+
+          this.error.set(response?.error?.detail ?? 'Unable to start live sensor.');
+        },
+      });
+  }
+
+  stopLive(): void {
+    const current = this.live();
+
+    if (!current || !this.liveActive()) {
+      return;
+    }
+
+    this.liveBusy.set(true);
+    this.error.set(null);
+
+    this.api.stopLive(current.run_id).subscribe({
+      next: (response) => {
+        this.live.update((session) => {
+          if (session === null) {
+            return null;
+          }
+
+          return {
+            ...session,
+            state: response.state,
+          };
+        });
+
+        this.liveBusy.set(false);
+      },
+      error: (response) => {
+        this.liveBusy.set(false);
+
+        this.error.set(response?.error?.detail ?? 'Unable to stop live sensor.');
+      },
+    });
+  }
+
   openHistory(runId: string): void {
-    if (this.active() || this.historyBusy()) {
+    if (this.anyActive() || this.historyBusy()) {
       return;
     }
 
     this.historyBusy.set(true);
     this.error.set(null);
+
     this.closeStream();
     this.stopPolling();
 
@@ -130,6 +322,7 @@ export class App implements OnDestroy {
       events: this.api.getHistoryEvents(runId),
     }).subscribe({
       next: ({ replay, events }) => {
+        this.workspace.set('history');
         this.selectedHistoryRunId.set(runId);
 
         this.replay.set({
@@ -137,53 +330,49 @@ export class App implements OnDestroy {
           retained_event_count: replay.event_count,
         });
 
-        this.predictions.set(events.events);
+        this.historyPredictions.set(events.events);
         this.historyBusy.set(false);
       },
       error: (response) => {
         this.historyBusy.set(false);
-        this.error.set(
-          response?.error?.detail ??
-            'Unable to open replay history.',
-        );
+
+        this.error.set(response?.error?.detail ?? 'Unable to open replay history.');
       },
     });
   }
 
   startReplay(): void {
-    if (!this.capture.trim() || this.busy()) {
+    if (!this.capture.trim() || this.busy() || this.liveActive()) {
       return;
     }
 
+    this.workspace.set('replay');
     this.busy.set(true);
     this.error.set(null);
     this.selectedHistoryRunId.set(null);
-    this.predictions.set([]);
+    this.replayPredictions.set([]);
+
     this.closeStream();
     this.stopPolling();
 
     this.api
       .startReplay({
         capture: this.capture.trim(),
-        time_scale: this.maximumSpeed
-          ? null
-          : this.timeScale,
+        time_scale: this.maximumSpeed ? null : this.timeScale,
       })
       .subscribe({
         next: (snapshot) => {
           this.replay.set(snapshot);
           this.busy.set(false);
 
-          this.connectStream(snapshot.run_id);
-          this.startPolling(snapshot.run_id);
+          this.connectReplayStream(snapshot.run_id);
+          this.startReplayPolling(snapshot.run_id);
           this.loadHealth();
         },
         error: (response) => {
           this.busy.set(false);
-          this.error.set(
-            response?.error?.detail ??
-              'Unable to start replay.',
-          );
+
+          this.error.set(response?.error?.detail ?? 'Unable to start replay.');
         },
       });
   }
@@ -200,10 +389,7 @@ export class App implements OnDestroy {
         this.refreshReplay(current.run_id);
       },
       error: (response) => {
-        this.error.set(
-          response?.error?.detail ??
-            'Unable to pause replay.',
-        );
+        this.error.set(response?.error?.detail ?? 'Unable to pause replay.');
       },
     });
   }
@@ -220,10 +406,7 @@ export class App implements OnDestroy {
         this.refreshReplay(current.run_id);
       },
       error: (response) => {
-        this.error.set(
-          response?.error?.detail ??
-            'Unable to resume replay.',
-        );
+        this.error.set(response?.error?.detail ?? 'Unable to resume replay.');
       },
     });
   }
@@ -240,73 +423,96 @@ export class App implements OnDestroy {
         this.refreshReplay(current.run_id);
       },
       error: (response) => {
-        this.error.set(
-          response?.error?.detail ??
-            'Unable to cancel replay.',
-        );
+        this.error.set(response?.error?.detail ?? 'Unable to cancel replay.');
       },
     });
   }
 
-  trackPrediction(
-    _index: number,
-    event: RuntimePredictionEvent,
-  ): string {
+  trackPrediction(_index: number, event: RuntimePredictionEvent): string {
     return event.window.window_id;
   }
 
-  probability(
-    event: RuntimePredictionEvent,
-    index: number,
-  ): number {
+  probability(event: RuntimePredictionEvent, index: number): number {
     return event.classification.class_probabilities[index] ?? 0;
   }
 
-  private connectStream(runId: string): void {
-    this.eventSource = this.api.openReplayStream(
-      runId,
-      {
-        prediction: (event) => {
-          this.streamConnected.set(true);
+  private connectReplayStream(runId: string): void {
+    this.eventSource = this.api.openReplayStream(runId, {
+      prediction: (event) => {
+        this.streamConnected.set(true);
 
-          this.predictions.update((current) => [
-            ...current,
-            event,
-          ]);
-        },
-
-        terminal: (event) => {
-          this.streamConnected.set(false);
-          this.refreshReplay(event.run_id);
-          this.stopPolling();
-          this.loadHealth();
-        },
-
-        streamError: (detail) => {
-          this.streamConnected.set(false);
-          this.error.set(detail);
-        },
-
-        connectionError: () => {
-          const state = this.replay()?.state;
-
-          if (
-            state !== 'completed' &&
-            state !== 'failed' &&
-            state !== 'cancelled'
-          ) {
-            this.streamConnected.set(false);
-          }
-        },
+        this.replayPredictions.update((current) => [...current, event]);
       },
-    );
+
+      terminal: (event) => {
+        this.streamConnected.set(false);
+        this.refreshReplay(event.run_id);
+        this.stopPolling();
+        this.loadHealth();
+      },
+
+      streamError: (detail) => {
+        this.streamConnected.set(false);
+        this.error.set(detail);
+      },
+
+      connectionError: () => {
+        const state = this.replay()?.state;
+
+        if (state !== 'completed' && state !== 'failed' && state !== 'cancelled') {
+          this.streamConnected.set(false);
+        }
+      },
+    });
   }
 
-  private startPolling(runId: string): void {
-    this.pollTimer = setInterval(
-      () => this.refreshReplay(runId),
-      250,
-    );
+  private connectLiveStream(runId: string): void {
+    this.eventSource = this.api.openLiveStream(runId, {
+      prediction: (event) => {
+        this.streamConnected.set(true);
+
+        this.livePredictions.update((current) => [...current, event]);
+      },
+
+      terminal: (event) => {
+        this.streamConnected.set(false);
+
+        this.live.update((session) => {
+          if (session === null) {
+            return null;
+          }
+
+          return {
+            ...session,
+            state: event.state,
+          };
+        });
+
+        this.stopPolling();
+        this.loadHealth();
+      },
+
+      streamError: (detail) => {
+        this.streamConnected.set(false);
+        this.error.set(detail);
+      },
+
+      connectionError: () => {
+        const state = this.live()?.state;
+
+        if (state !== 'completed' && state !== 'failed') {
+          this.streamConnected.set(false);
+        }
+      },
+    });
+  }
+
+  private startReplayPolling(runId: string): void {
+    this.pollTimer = setInterval(() => this.refreshReplay(runId), 250);
+  }
+
+  private startLivePolling(runId: string): void {
+    this.pollTimer = setInterval(() => this.refreshLive(runId), 500);
   }
 
   private refreshReplay(runId: string): void {
@@ -321,6 +527,18 @@ export class App implements OnDestroy {
         ) {
           this.stopPolling();
           this.loadHistory();
+        }
+      },
+    });
+  }
+
+  private refreshLive(runId: string): void {
+    this.api.getLive(runId).subscribe({
+      next: (session) => {
+        this.live.set(session);
+
+        if (session.state === 'completed' || session.state === 'failed') {
+          this.stopPolling();
         }
       },
     });

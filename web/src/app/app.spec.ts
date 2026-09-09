@@ -1,25 +1,13 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import {
-  Observable,
-  of,
-  throwError,
-} from 'rxjs';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+import { Observable, of, throwError } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './app';
-import {
-  OperatorApi,
-  ReplayStreamHandlers,
-} from './operator-api';
+import { LiveStreamHandlers, OperatorApi, ReplayStreamHandlers } from './operator-api';
 import {
   HealthResponse,
+  LiveInterfacesResponse,
+  LiveSessionSnapshot,
   ReplayHistoryResponse,
   ReplaySnapshot,
   RuntimePredictionEvent,
@@ -67,6 +55,27 @@ const COMPLETED: ReplaySnapshot = {
   retained_event_count: 1,
 };
 
+const LIVE_STARTING: LiveSessionSnapshot = {
+  run_id: 'live-001',
+  state: 'starting',
+  configuration: {
+    interface: 'eth0',
+    stale_after_seconds: 120,
+    max_tracked_flows: 4096,
+  },
+  failure: null,
+};
+
+const LIVE_RUNNING: LiveSessionSnapshot = {
+  ...LIVE_STARTING,
+  state: 'running',
+};
+
+const LIVE_COMPLETED: LiveSessionSnapshot = {
+  ...LIVE_STARTING,
+  state: 'completed',
+};
+
 const PREDICTION: RuntimePredictionEvent = {
   schema_version: 'parallax-runtime-prediction-1',
   run_id: 'run-001',
@@ -80,13 +89,7 @@ const PREDICTION: RuntimePredictionEvent = {
     packet_count: 21,
   },
   classification: {
-    category_order: [
-      'Streaming',
-      'VoIP',
-      'Chat',
-      'C2',
-      'File Transfer',
-    ],
+    category_order: ['Streaming', 'VoIP', 'Chat', 'C2', 'File Transfer'],
     class_probabilities: [0.7, 0.1, 0.1, 0.05, 0.05],
     predicted_class_index: 0,
     predicted_category: 'Streaming',
@@ -100,68 +103,89 @@ const PREDICTION: RuntimePredictionEvent = {
 };
 
 class FakeOperatorApi {
-  readonly health = vi.fn<() => Observable<HealthResponse>>(
-    () => of(HEALTH),
+  readonly health = vi.fn<() => Observable<HealthResponse>>(() => of(HEALTH));
+
+  readonly listHistory = vi.fn<() => Observable<ReplayHistoryResponse>>(() =>
+    of({
+      replays: [],
+    }),
   );
 
-  readonly listHistory = vi.fn<
-    () => Observable<ReplayHistoryResponse>
-  >(
-    () =>
-      of({
-        replays: [],
-      }),
+  readonly getHistoryReplay = vi.fn((runId: string) =>
+    of({
+      ...COMPLETED,
+      run_id: runId,
+    }),
   );
 
-  readonly getHistoryReplay = vi.fn(
-    (runId: string) =>
-      of({
-        ...COMPLETED,
-        run_id: runId,
-      }),
+  readonly getHistoryEvents = vi.fn((runId: string) =>
+    of({
+      run_id: runId,
+      events: [PREDICTION],
+    }),
   );
 
-  readonly getHistoryEvents = vi.fn(
-    (runId: string) =>
-      of({
-        run_id: runId,
-        events: [PREDICTION],
-      }),
+  readonly listLiveInterfaces = vi.fn<() => Observable<LiveInterfacesResponse>>(() =>
+    of({
+      interfaces: [
+        {
+          index: 1,
+          name: 'lo',
+        },
+        {
+          index: 2,
+          name: 'eth0',
+        },
+      ],
+    }),
   );
 
-  readonly startReplay = vi.fn(
-    () => of(CREATED),
+  readonly startLive = vi.fn(() => of(LIVE_STARTING));
+
+  readonly getLive = vi.fn(() => of(LIVE_RUNNING));
+
+  readonly getLiveEvents = vi.fn((runId: string) =>
+    of({
+      run_id: runId,
+      events: [],
+    }),
   );
 
-  readonly getReplay = vi.fn(
-    () => of(RUNNING),
+  readonly stopLive = vi.fn(() =>
+    of({
+      run_id: 'live-001',
+      action: 'stop',
+      accepted: true,
+      state: 'stopping' as const,
+    }),
   );
 
-  readonly pauseReplay = vi.fn(
-    () =>
-      of({
-        run_id: 'run-001',
-        action: 'pause',
-        accepted: true,
-      }),
+  readonly startReplay = vi.fn(() => of(CREATED));
+
+  readonly getReplay = vi.fn(() => of(RUNNING));
+
+  readonly pauseReplay = vi.fn(() =>
+    of({
+      run_id: 'run-001',
+      action: 'pause',
+      accepted: true,
+    }),
   );
 
-  readonly resumeReplay = vi.fn(
-    () =>
-      of({
-        run_id: 'run-001',
-        action: 'resume',
-        accepted: true,
-      }),
+  readonly resumeReplay = vi.fn(() =>
+    of({
+      run_id: 'run-001',
+      action: 'resume',
+      accepted: true,
+    }),
   );
 
-  readonly cancelReplay = vi.fn(
-    () =>
-      of({
-        run_id: 'run-001',
-        action: 'cancel',
-        accepted: true,
-      }),
+  readonly cancelReplay = vi.fn(() =>
+    of({
+      run_id: 'run-001',
+      action: 'cancel',
+      accepted: true,
+    }),
   );
 
   handlers: ReplayStreamHandlers | null = null;
@@ -170,11 +194,20 @@ class FakeOperatorApi {
     close: vi.fn(),
   };
 
+  liveHandlers: LiveStreamHandlers | null = null;
+
+  readonly liveSource = {
+    close: vi.fn(),
+  };
+
+  readonly openLiveStream = vi.fn((_runId: string, handlers: LiveStreamHandlers): EventSource => {
+    this.liveHandlers = handlers;
+
+    return this.liveSource as unknown as EventSource;
+  });
+
   readonly openReplayStream = vi.fn(
-    (
-      _runId: string,
-      handlers: ReplayStreamHandlers,
-    ): EventSource => {
+    (_runId: string, handlers: ReplayStreamHandlers): EventSource => {
       this.handlers = handlers;
       return this.source as unknown as EventSource;
     },
@@ -218,17 +251,11 @@ describe('App', () => {
 
     const compiled = fixture.nativeElement as HTMLElement;
 
-    expect(compiled.querySelector('h1')?.textContent).toContain(
-      'Encrypted Traffic Operator',
-    );
+    expect(compiled.querySelector('h1')?.textContent).toContain('Network Intelligence Console');
 
-    expect(compiled.textContent).toContain(
-      'Service online',
-    );
+    expect(compiled.textContent).toContain('Operator online');
 
-    expect(compiled.textContent).toContain(
-      'Start a replay to receive runtime predictions.',
-    );
+    expect(compiled.textContent).toContain('Start the sensor to begin classifying');
   });
 
   it('starts replay at configured speed and connects SSE', () => {
@@ -243,10 +270,7 @@ describe('App', () => {
     });
 
     expect(component.replay()).toEqual(CREATED);
-    expect(api.openReplayStream).toHaveBeenCalledWith(
-      'run-001',
-      expect.any(Object),
-    );
+    expect(api.openReplayStream).toHaveBeenCalledWith('run-001', expect.any(Object));
   });
 
   it('starts maximum-speed replay with a null time scale', () => {
@@ -281,12 +305,8 @@ describe('App', () => {
     api.handlers?.prediction(PREDICTION);
     fixture.detectChanges();
 
-    expect(component.predictions()).toEqual([
-      PREDICTION,
-    ]);
-    expect(component.latestPrediction()).toEqual(
-      PREDICTION,
-    );
+    expect(component.predictions()).toEqual([PREDICTION]);
+    expect(component.latestPrediction()).toEqual(PREDICTION);
     expect(component.streamConnected()).toBe(true);
 
     const compiled = fixture.nativeElement as HTMLElement;
@@ -345,9 +365,7 @@ describe('App', () => {
 
     vi.advanceTimersByTime(250);
 
-    expect(api.getReplay).toHaveBeenCalledWith(
-      'run-001',
-    );
+    expect(api.getReplay).toHaveBeenCalledWith('run-001');
   });
 
   it('stops polling after a terminal snapshot', () => {
@@ -369,9 +387,7 @@ describe('App', () => {
 
     component.pause();
 
-    expect(api.pauseReplay).toHaveBeenCalledWith(
-      'run-001',
-    );
+    expect(api.pauseReplay).toHaveBeenCalledWith('run-001');
     expect(component.replay()).toEqual(PAUSED);
   });
 
@@ -381,9 +397,7 @@ describe('App', () => {
 
     component.resume();
 
-    expect(api.resumeReplay).toHaveBeenCalledWith(
-      'run-001',
-    );
+    expect(api.resumeReplay).toHaveBeenCalledWith('run-001');
     expect(component.replay()).toEqual(RUNNING);
   });
 
@@ -392,9 +406,7 @@ describe('App', () => {
 
     component.cancel();
 
-    expect(api.cancelReplay).toHaveBeenCalledWith(
-      'run-001',
-    );
+    expect(api.cancelReplay).toHaveBeenCalledWith('run-001');
   });
 
   it('ignores control actions without a replay', () => {
@@ -420,67 +432,46 @@ describe('App', () => {
 
     component.startReplay();
 
-    expect(component.error()).toBe(
-      'capture does not exist',
-    );
+    expect(component.error()).toBe('capture does not exist');
     expect(component.busy()).toBe(false);
   });
 
   it('uses fallback start error text', () => {
-    api.startReplay.mockReturnValue(
-      throwError(() => ({})),
-    );
+    api.startReplay.mockReturnValue(throwError(() => ({})));
 
     component.startReplay();
 
-    expect(component.error()).toBe(
-      'Unable to start replay.',
-    );
+    expect(component.error()).toBe('Unable to start replay.');
   });
 
   it.each([
     ['pause', 'pauseReplay', 'Unable to pause replay.'],
     ['resume', 'resumeReplay', 'Unable to resume replay.'],
     ['cancel', 'cancelReplay', 'Unable to cancel replay.'],
-  ] as const)(
-    'surfaces %s control failures',
-    (action, method, fallback) => {
-      component.replay.set(RUNNING);
+  ] as const)('surfaces %s control failures', (action, method, fallback) => {
+    component.replay.set(RUNNING);
 
-      api[method].mockReturnValue(
-        throwError(() => ({})),
-      );
+    api[method].mockReturnValue(throwError(() => ({})));
 
-      component[action]();
+    component[action]();
 
-      expect(component.error()).toBe(fallback);
-    },
-  );
+    expect(component.error()).toBe(fallback);
+  });
 
   it('surfaces the health connection failure', () => {
-    api.health.mockReturnValue(
-      throwError(() => new Error('offline')),
-    );
+    api.health.mockReturnValue(throwError(() => new Error('offline')));
 
     component.loadHealth();
 
-    expect(component.error()).toBe(
-      'Unable to reach the Parallax operator service.',
-    );
+    expect(component.error()).toBe('Unable to reach the Parallax operator service.');
   });
 
   it('provides stable prediction helpers', () => {
-    expect(
-      component.trackPrediction(0, PREDICTION),
-    ).toBe('window-001');
+    expect(component.trackPrediction(0, PREDICTION)).toBe('window-001');
 
-    expect(
-      component.probability(PREDICTION, 0),
-    ).toBe(0.7);
+    expect(component.probability(PREDICTION, 0)).toBe(0.7);
 
-    expect(
-      component.probability(PREDICTION, 999),
-    ).toBe(0);
+    expect(component.probability(PREDICTION, 999)).toBe(0);
   });
 
   it('closes the active EventSource on destroy', () => {
@@ -524,15 +515,11 @@ describe('App', () => {
   });
 
   it('surfaces replay history loading failures', () => {
-    api.listHistory.mockReturnValue(
-      throwError(() => new Error('offline')),
-    );
+    api.listHistory.mockReturnValue(throwError(() => new Error('offline')));
 
     component.loadHistory();
 
-    expect(component.error()).toBe(
-      'Unable to load replay history.',
-    );
+    expect(component.error()).toBe('Unable to load replay history.');
   });
 
   it('opens a persisted replay and restores its predictions', () => {
@@ -552,16 +539,10 @@ describe('App', () => {
 
     component.openHistory('history-001');
 
-    expect(api.getHistoryReplay).toHaveBeenCalledWith(
-      'history-001',
-    );
-    expect(api.getHistoryEvents).toHaveBeenCalledWith(
-      'history-001',
-    );
+    expect(api.getHistoryReplay).toHaveBeenCalledWith('history-001');
+    expect(api.getHistoryEvents).toHaveBeenCalledWith('history-001');
 
-    expect(component.selectedHistoryRunId()).toBe(
-      'history-001',
-    );
+    expect(component.selectedHistoryRunId()).toBe('history-001');
 
     expect(component.replay()).toEqual({
       ...COMPLETED,
@@ -569,9 +550,7 @@ describe('App', () => {
       retained_event_count: COMPLETED.event_count,
     });
 
-    expect(component.predictions()).toEqual([
-      PREDICTION,
-    ]);
+    expect(component.predictions()).toEqual([PREDICTION]);
 
     expect(component.historyBusy()).toBe(false);
   });
@@ -611,22 +590,16 @@ describe('App', () => {
 
     component.openHistory('missing');
 
-    expect(component.error()).toBe(
-      'persisted replay does not exist',
-    );
+    expect(component.error()).toBe('persisted replay does not exist');
     expect(component.historyBusy()).toBe(false);
   });
 
   it('uses fallback text for history opening failures', () => {
-    api.getHistoryReplay.mockReturnValue(
-      throwError(() => ({})),
-    );
+    api.getHistoryReplay.mockReturnValue(throwError(() => ({})));
 
     component.openHistory('missing');
 
-    expect(component.error()).toBe(
-      'Unable to open replay history.',
-    );
+    expect(component.error()).toBe('Unable to open replay history.');
     expect(component.historyBusy()).toBe(false);
   });
 
@@ -659,6 +632,4 @@ describe('App', () => {
     expect(component.selectedHistoryRunId()).toBeNull();
     expect(api.startReplay).toHaveBeenCalledOnce();
   });
-
-
 });
