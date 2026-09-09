@@ -84,6 +84,7 @@ main {
 .control-panel,
 .prediction-focus,
 .events-panel,
+.history-panel,
 .provenance-panel {
   border: 1px solid #1e3040;
   background: rgba(12, 23, 34, 0.88);
@@ -93,6 +94,7 @@ main {
 .control-panel,
 .prediction-focus,
 .events-panel,
+.history-panel,
 .provenance-panel {
   padding: 22px;
 }
@@ -426,5 +428,62 @@ dd {
     flex-direction: column;
     justify-content: center;
     gap: 10px;
+  }
+}
+
+
+.history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns:
+    minmax(280px, 1fr)
+    110px
+    100px
+    100px;
+  gap: 18px;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.history-row.selected {
+  border-color: #4c83ad;
+  background: #132b3d;
+}
+
+.history-source {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.history-source strong {
+  overflow: hidden;
+  color: #dce6ee;
+  font-size: 0.78rem;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-source .mono {
+  max-width: none;
+}
+
+.history-stat {
+  color: #8397a8;
+  font-size: 0.73rem;
+}
+
+@media (max-width: 900px) {
+  .history-row {
+    grid-template-columns: 1fr 100px;
   }
 }

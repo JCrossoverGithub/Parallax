@@ -1,3 +1,4 @@
+import { DecimalPipe } from '@angular/common';
 import {
   Component,
   OnDestroy,
@@ -5,12 +6,13 @@ import {
   inject,
   signal,
 } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { forkJoin } from 'rxjs';
 
 import { OperatorApi } from './operator-api';
 import {
   HealthResponse,
+  ReplayHistoryRecord,
   ReplaySnapshot,
   RuntimePredictionEvent,
 } from './operator.types';
@@ -30,10 +32,13 @@ export class App implements OnDestroy {
   readonly health = signal<HealthResponse | null>(null);
   readonly replay = signal<ReplaySnapshot | null>(null);
   readonly predictions = signal<RuntimePredictionEvent[]>([]);
+  readonly history = signal<ReplayHistoryRecord[]>([]);
 
   readonly error = signal<string | null>(null);
   readonly streamConnected = signal(false);
   readonly busy = signal(false);
+  readonly historyBusy = signal(false);
+  readonly selectedHistoryRunId = signal<string | null>(null);
 
   capture = 'nonvpn_ssh_capture4.pcap';
   timeScale = 1;
@@ -43,6 +48,10 @@ export class App implements OnDestroy {
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   readonly active = computed(() => {
+    if (this.selectedHistoryRunId() !== null) {
+      return false;
+    }
+
     const state = this.replay()?.state;
 
     return (
@@ -53,11 +62,15 @@ export class App implements OnDestroy {
   });
 
   readonly canPause = computed(
-    () => this.replay()?.state === 'running',
+    () =>
+      this.selectedHistoryRunId() === null &&
+      this.replay()?.state === 'running',
   );
 
   readonly canResume = computed(
-    () => this.replay()?.state === 'paused',
+    () =>
+      this.selectedHistoryRunId() === null &&
+      this.replay()?.state === 'paused',
   );
 
   readonly latestPrediction = computed(() => {
@@ -70,6 +83,7 @@ export class App implements OnDestroy {
 
   constructor() {
     this.loadHealth();
+    this.loadHistory();
   }
 
   ngOnDestroy(): void {
@@ -83,7 +97,55 @@ export class App implements OnDestroy {
         this.health.set(health);
       },
       error: () => {
-        this.error.set('Unable to reach the Parallax operator service.');
+        this.error.set(
+          'Unable to reach the Parallax operator service.',
+        );
+      },
+    });
+  }
+
+  loadHistory(): void {
+    this.api.listHistory().subscribe({
+      next: (response) => {
+        this.history.set(response.replays);
+      },
+      error: () => {
+        this.error.set('Unable to load replay history.');
+      },
+    });
+  }
+
+  openHistory(runId: string): void {
+    if (this.active() || this.historyBusy()) {
+      return;
+    }
+
+    this.historyBusy.set(true);
+    this.error.set(null);
+    this.closeStream();
+    this.stopPolling();
+
+    forkJoin({
+      replay: this.api.getHistoryReplay(runId),
+      events: this.api.getHistoryEvents(runId),
+    }).subscribe({
+      next: ({ replay, events }) => {
+        this.selectedHistoryRunId.set(runId);
+
+        this.replay.set({
+          ...replay,
+          retained_event_count: replay.event_count,
+        });
+
+        this.predictions.set(events.events);
+        this.historyBusy.set(false);
+      },
+      error: (response) => {
+        this.historyBusy.set(false);
+        this.error.set(
+          response?.error?.detail ??
+            'Unable to open replay history.',
+        );
       },
     });
   }
@@ -95,6 +157,7 @@ export class App implements OnDestroy {
 
     this.busy.set(true);
     this.error.set(null);
+    this.selectedHistoryRunId.set(null);
     this.predictions.set([]);
     this.closeStream();
     this.stopPolling();
@@ -128,7 +191,7 @@ export class App implements OnDestroy {
   pause(): void {
     const current = this.replay();
 
-    if (!current) {
+    if (!current || this.selectedHistoryRunId() !== null) {
       return;
     }
 
@@ -148,7 +211,7 @@ export class App implements OnDestroy {
   resume(): void {
     const current = this.replay();
 
-    if (!current) {
+    if (!current || this.selectedHistoryRunId() !== null) {
       return;
     }
 
@@ -168,7 +231,7 @@ export class App implements OnDestroy {
   cancel(): void {
     const current = this.replay();
 
-    if (!current) {
+    if (!current || this.selectedHistoryRunId() !== null) {
       return;
     }
 
@@ -257,6 +320,7 @@ export class App implements OnDestroy {
           snapshot.state === 'cancelled'
         ) {
           this.stopPolling();
+          this.loadHistory();
         }
       },
     });

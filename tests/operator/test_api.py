@@ -459,3 +459,126 @@ def test_stream_generator_reports_cursor_loss() -> None:
     assert chunks == [
         ('event: stream-error\ndata: {"detail":"requested events are no longer retained"}\n\n')
     ]
+
+
+def _history_record(run_id: str = "history-001"):
+    from parallax.operator.history import OperatorHistoryRecord
+    from parallax.replay import ReplayState
+
+    return OperatorHistoryRecord(
+        run_id=run_id,
+        source_id="capture.pcap",
+        source_sha256="a" * 64,
+        state=ReplayState.COMPLETED,
+        time_scale=1.0,
+        event_count=1,
+        failure_code=None,
+        failure_message=None,
+    )
+
+
+class FakeHistoryService:
+    def list_history(self, *, limit: int = 100):
+        from parallax.operator.service import OperatorServiceError
+
+        if limit < 1:
+            raise OperatorServiceError("history list limit must be positive")
+
+        return (_history_record(),)
+
+    def get_history_replay(self, run_id: str):
+        from parallax.operator.service import (
+            OperatorReplayNotFoundError,
+        )
+
+        if run_id == "missing":
+            raise OperatorReplayNotFoundError("persisted replay does not exist")
+
+        return _history_record(run_id)
+
+    def get_history_events(
+        self,
+        run_id: str,
+    ) -> tuple[dict[str, object], ...]:
+        from parallax.operator.service import (
+            OperatorReplayNotFoundError,
+        )
+
+        if run_id == "missing":
+            raise OperatorReplayNotFoundError("persisted replay does not exist")
+
+        return (
+            {
+                "schema_version": ("parallax-runtime-prediction-1"),
+                "run_id": run_id,
+            },
+        )
+
+
+def _history_client():
+    from typing import cast
+
+    from fastapi.testclient import TestClient
+
+    from parallax.operator.api import create_operator_app
+    from parallax.operator.service import OperatorReplayService
+
+    service = cast(
+        OperatorReplayService,
+        FakeHistoryService(),
+    )
+
+    return TestClient(create_operator_app(service))
+
+
+def test_lists_persisted_replay_history() -> None:
+    response = _history_client().get("/api/v1/history?limit=10")
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert len(payload["replays"]) == 1
+    assert payload["replays"][0]["run_id"] == "history-001"
+    assert payload["replays"][0]["state"] == "completed"
+
+
+def test_history_list_rejects_invalid_limit() -> None:
+    response = _history_client().get("/api/v1/history?limit=0")
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "history list limit must be positive"}
+
+
+def test_reads_persisted_replay_summary() -> None:
+    response = _history_client().get("/api/v1/history/history-002")
+
+    assert response.status_code == 200
+    assert response.json()["run_id"] == "history-002"
+
+
+def test_missing_persisted_replay_returns_not_found() -> None:
+    response = _history_client().get("/api/v1/history/missing")
+
+    assert response.status_code == 404
+
+
+def test_reads_persisted_prediction_events() -> None:
+    response = _history_client().get("/api/v1/history/history-003/events")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "run_id": "history-003",
+        "events": [
+            {
+                "schema_version": ("parallax-runtime-prediction-1"),
+                "run_id": "history-003",
+            }
+        ],
+    }
+
+
+def test_missing_persisted_events_return_not_found() -> None:
+    response = _history_client().get("/api/v1/history/missing/events")
+
+    assert response.status_code == 404

@@ -20,6 +20,7 @@ import {
 } from './operator-api';
 import {
   HealthResponse,
+  ReplayHistoryResponse,
   ReplaySnapshot,
   RuntimePredictionEvent,
 } from './operator.types';
@@ -101,6 +102,31 @@ const PREDICTION: RuntimePredictionEvent = {
 class FakeOperatorApi {
   readonly health = vi.fn<() => Observable<HealthResponse>>(
     () => of(HEALTH),
+  );
+
+  readonly listHistory = vi.fn<
+    () => Observable<ReplayHistoryResponse>
+  >(
+    () =>
+      of({
+        replays: [],
+      }),
+  );
+
+  readonly getHistoryReplay = vi.fn(
+    (runId: string) =>
+      of({
+        ...COMPLETED,
+        run_id: runId,
+      }),
+  );
+
+  readonly getHistoryEvents = vi.fn(
+    (runId: string) =>
+      of({
+        run_id: runId,
+        events: [PREDICTION],
+      }),
   );
 
   readonly startReplay = vi.fn(
@@ -464,4 +490,175 @@ describe('App', () => {
 
     expect(api.source.close).toHaveBeenCalled();
   });
+
+  it('loads persisted replay history', () => {
+    api.listHistory.mockReturnValue(
+      of({
+        replays: [
+          {
+            run_id: 'history-001',
+            source_id: 'capture.pcap',
+            source_sha256: 'f'.repeat(64),
+            state: 'completed',
+            time_scale: 1,
+            event_count: 1,
+            failure: null,
+          },
+        ],
+      }),
+    );
+
+    component.loadHistory();
+
+    expect(component.history()).toEqual([
+      {
+        run_id: 'history-001',
+        source_id: 'capture.pcap',
+        source_sha256: 'f'.repeat(64),
+        state: 'completed',
+        time_scale: 1,
+        event_count: 1,
+        failure: null,
+      },
+    ]);
+  });
+
+  it('surfaces replay history loading failures', () => {
+    api.listHistory.mockReturnValue(
+      throwError(() => new Error('offline')),
+    );
+
+    component.loadHistory();
+
+    expect(component.error()).toBe(
+      'Unable to load replay history.',
+    );
+  });
+
+  it('opens a persisted replay and restores its predictions', () => {
+    api.getHistoryReplay.mockReturnValue(
+      of({
+        ...COMPLETED,
+        run_id: 'history-001',
+      }),
+    );
+
+    api.getHistoryEvents.mockReturnValue(
+      of({
+        run_id: 'history-001',
+        events: [PREDICTION],
+      }),
+    );
+
+    component.openHistory('history-001');
+
+    expect(api.getHistoryReplay).toHaveBeenCalledWith(
+      'history-001',
+    );
+    expect(api.getHistoryEvents).toHaveBeenCalledWith(
+      'history-001',
+    );
+
+    expect(component.selectedHistoryRunId()).toBe(
+      'history-001',
+    );
+
+    expect(component.replay()).toEqual({
+      ...COMPLETED,
+      run_id: 'history-001',
+      retained_event_count: COMPLETED.event_count,
+    });
+
+    expect(component.predictions()).toEqual([
+      PREDICTION,
+    ]);
+
+    expect(component.historyBusy()).toBe(false);
+  });
+
+  it('does not open history while a live replay is active', () => {
+    component.replay.set(RUNNING);
+
+    api.getHistoryReplay.mockClear();
+    api.getHistoryEvents.mockClear();
+
+    component.openHistory('history-001');
+
+    expect(api.getHistoryReplay).not.toHaveBeenCalled();
+    expect(api.getHistoryEvents).not.toHaveBeenCalled();
+  });
+
+  it('does not open another history item while history is loading', () => {
+    component.historyBusy.set(true);
+
+    api.getHistoryReplay.mockClear();
+    api.getHistoryEvents.mockClear();
+
+    component.openHistory('history-001');
+
+    expect(api.getHistoryReplay).not.toHaveBeenCalled();
+    expect(api.getHistoryEvents).not.toHaveBeenCalled();
+  });
+
+  it('surfaces structured history opening failures', () => {
+    api.getHistoryReplay.mockReturnValue(
+      throwError(() => ({
+        error: {
+          detail: 'persisted replay does not exist',
+        },
+      })),
+    );
+
+    component.openHistory('missing');
+
+    expect(component.error()).toBe(
+      'persisted replay does not exist',
+    );
+    expect(component.historyBusy()).toBe(false);
+  });
+
+  it('uses fallback text for history opening failures', () => {
+    api.getHistoryReplay.mockReturnValue(
+      throwError(() => ({})),
+    );
+
+    component.openHistory('missing');
+
+    expect(component.error()).toBe(
+      'Unable to open replay history.',
+    );
+    expect(component.historyBusy()).toBe(false);
+  });
+
+  it('treats persisted sessions as read-only', () => {
+    component.replay.set(RUNNING);
+    component.selectedHistoryRunId.set('history-001');
+
+    api.pauseReplay.mockClear();
+    api.resumeReplay.mockClear();
+    api.cancelReplay.mockClear();
+
+    expect(component.active()).toBe(false);
+    expect(component.canPause()).toBe(false);
+
+    component.pause();
+    component.resume();
+    component.cancel();
+
+    expect(api.pauseReplay).not.toHaveBeenCalled();
+    expect(api.resumeReplay).not.toHaveBeenCalled();
+    expect(api.cancelReplay).not.toHaveBeenCalled();
+  });
+
+  it('allows starting a new replay after viewing history', () => {
+    component.selectedHistoryRunId.set('history-001');
+    component.replay.set(COMPLETED);
+
+    component.startReplay();
+
+    expect(component.selectedHistoryRunId()).toBeNull();
+    expect(api.startReplay).toHaveBeenCalledOnce();
+  });
+
+
 });

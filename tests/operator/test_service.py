@@ -512,3 +512,142 @@ def test_control_error_becomes_operator_conflict(
     _wait_for_terminal(service, created.run_id)
 
     assert service.get_replay(created.run_id).state is ReplayState.CANCELLED
+
+
+def test_service_persists_completed_replay_and_events(
+    tmp_path: Path,
+) -> None:
+    from parallax.operator import SqliteOperatorHistory
+
+    source = tmp_path / "nonvpn_ssh_capture100.pcap"
+    _write_pcap(
+        source,
+        [(100.0 + index * 0.1, _ipv4_packet()) for index in range(21)],
+    )
+
+    history = SqliteOperatorHistory(tmp_path / "operator.sqlite3")
+
+    service = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=FakeScorer(),
+        model_identity=_identity(),
+        history=history,
+    )
+
+    created = service.start_replay(
+        source.name,
+        time_scale=None,
+    )
+    _wait_for_terminal(service, created.run_id)
+
+    persisted = service.get_history_replay(created.run_id)
+    events = service.get_history_events(created.run_id)
+
+    assert persisted.state is ReplayState.COMPLETED
+    assert persisted.event_count == 1
+    assert len(events) == 1
+    assert events[0]["run_id"] == created.run_id
+
+
+def test_service_lists_persisted_history(
+    tmp_path: Path,
+) -> None:
+    from parallax.operator import SqliteOperatorHistory
+
+    history = SqliteOperatorHistory(tmp_path / "operator.sqlite3")
+
+    service = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=FakeScorer(),
+        model_identity=_identity(),
+        history=history,
+    )
+
+    first = tmp_path / "nonvpn_ssh_capture101.pcap"
+    second = tmp_path / "nonvpn_ssh_capture102.pcap"
+
+    _write_pcap(first, [])
+    _write_pcap(second, [])
+
+    run_one = service.start_replay(
+        first.name,
+        time_scale=None,
+    )
+    _wait_for_terminal(service, run_one.run_id)
+
+    run_two = service.start_replay(
+        second.name,
+        time_scale=None,
+    )
+    _wait_for_terminal(service, run_two.run_id)
+
+    assert [record.run_id for record in service.list_history()][:2] == [
+        run_two.run_id,
+        run_one.run_id,
+    ]
+
+
+def test_service_without_history_has_empty_history(
+    tmp_path: Path,
+) -> None:
+    service = _service(tmp_path)
+
+    assert service.list_history() == ()
+
+    with pytest.raises(
+        OperatorReplayNotFoundError,
+        match="persisted replay",
+    ):
+        service.get_history_replay("missing")
+
+
+def test_history_validation_errors_become_service_errors(
+    tmp_path: Path,
+) -> None:
+    from parallax.operator.history import SqliteOperatorHistory
+    from parallax.operator.service import OperatorServiceError
+
+    history = SqliteOperatorHistory(tmp_path / "operator.sqlite3")
+
+    service = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=FakeScorer(),
+        model_identity=_identity(),
+        history=history,
+    )
+
+    with pytest.raises(
+        OperatorServiceError,
+        match="history list limit must be positive",
+    ):
+        service.list_history(limit=0)
+
+
+def test_configured_history_rejects_unknown_replay(
+    tmp_path: Path,
+) -> None:
+    from parallax.operator.history import SqliteOperatorHistory
+    from parallax.operator.service import (
+        OperatorReplayNotFoundError,
+    )
+
+    history = SqliteOperatorHistory(tmp_path / "operator.sqlite3")
+
+    service = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=FakeScorer(),
+        model_identity=_identity(),
+        history=history,
+    )
+
+    with pytest.raises(
+        OperatorReplayNotFoundError,
+        match="persisted replay",
+    ):
+        service.get_history_replay("missing")
+
+    with pytest.raises(
+        OperatorReplayNotFoundError,
+        match="persisted replay",
+    ):
+        service.get_history_events("missing")

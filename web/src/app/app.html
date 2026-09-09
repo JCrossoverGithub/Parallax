@@ -275,11 +275,70 @@
       }
     </section>
 
+    <section class="history-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-number">04</span>
+          <h2>Replay History</h2>
+        </div>
+
+        <span class="muted">
+          {{ history().length }} stored sessions
+        </span>
+      </div>
+
+      @if (history().length === 0) {
+        <div class="empty-state">
+          Completed replay sessions will appear here.
+        </div>
+      } @else {
+        <div class="history-list">
+          @for (item of history(); track item.run_id) {
+            <button
+              type="button"
+              class="history-row"
+              [class.selected]="
+                selectedHistoryRunId() === item.run_id
+              "
+              [disabled]="active() || historyBusy()"
+              (click)="openHistory(item.run_id)"
+            >
+              <span class="history-source">
+                <strong>{{ item.source_id }}</strong>
+                <span class="mono">
+                  {{ item.run_id }}
+                </span>
+              </span>
+
+              <span
+                class="state-badge"
+                [attr.data-state]="item.state"
+              >
+                {{ item.state }}
+              </span>
+
+              <span class="history-stat">
+                {{ item.event_count }} events
+              </span>
+
+              <span class="history-stat">
+                {{
+                  item.time_scale === null
+                    ? 'max speed'
+                    : item.time_scale + 'x'
+                }}
+              </span>
+            </button>
+          }
+        </div>
+      }
+    </section>
+
     @if (replay()) {
       <section class="provenance-panel">
         <div class="section-heading">
           <div>
-            <span class="section-number">04</span>
+            <span class="section-number">05</span>
             <h2>Runtime Provenance</h2>
           </div>
         </div>
@@ -297,12 +356,18 @@
 
           <div>
             <dt>Model SHA-256</dt>
-            <dd>{{ health()?.active_model?.model_bundle_sha256 }}</dd>
+            <dd>{{
+              latestPrediction()?.provenance?.model_bundle_sha256 ??
+                health()?.active_model?.model_bundle_sha256
+            }}</dd>
           </div>
 
           <div>
             <dt>Calibration SHA-256</dt>
-            <dd>{{ health()?.active_model?.calibration_artifact_sha256 }}</dd>
+            <dd>{{
+              latestPrediction()?.provenance?.calibration_artifact_sha256 ??
+                health()?.active_model?.calibration_artifact_sha256
+            }}</dd>
           </div>
         </dl>
       </section>

@@ -38,6 +38,20 @@ export interface ReplaySnapshot {
   failure: ReplayFailure | null;
 }
 
+export interface ReplayHistoryRecord {
+  run_id: string;
+  source_id: string;
+  source_sha256: string;
+  state: ReplayState;
+  time_scale: number | null;
+  event_count: number;
+  failure: ReplayFailure | null;
+}
+
+export interface ReplayHistoryResponse {
+  replays: ReplayHistoryRecord[];
+}
+
 export interface RuntimePredictionEvent {
   schema_version: string;
   run_id: string;
@@ -66,6 +80,11 @@ export interface RuntimePredictionEvent {
   };
 
   provenance: ModelIdentity;
+}
+
+export interface ReplayHistoryEventsResponse {
+  run_id: string;
+  events: RuntimePredictionEvent[];
 }
 
 export interface StartReplayRequest {

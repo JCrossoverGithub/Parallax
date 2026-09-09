@@ -7,6 +7,11 @@ from parallax.operator.application import (
     OperatorApplicationConfig,
     create_operator_application,
 )
+from parallax.operator.history import (
+    OperatorHistoryError,
+    OperatorHistoryRecord,
+    SqliteOperatorHistory,
+)
 from parallax.operator.service import (
     OperatorEventBatch,
     OperatorEventCursorError,
@@ -26,12 +31,15 @@ __all__ = [
     "OperatorEventBatch",
     "OperatorEventCursorError",
     "OperatorEventRecord",
+    "OperatorHistoryError",
+    "OperatorHistoryRecord",
     "OperatorModelIdentity",
     "OperatorReplayConflictError",
     "OperatorReplayNotFoundError",
     "OperatorReplayService",
     "OperatorReplaySnapshot",
     "OperatorServiceError",
+    "SqliteOperatorHistory",
     "StartReplayRequest",
     "create_operator_app",
     "create_operator_application",

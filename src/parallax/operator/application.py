@@ -13,6 +13,7 @@ from parallax.features import (
 )
 from parallax.modeling.runtime import load_prototype_runtime
 from parallax.operator.api import create_operator_app
+from parallax.operator.history import SqliteOperatorHistory
 from parallax.operator.service import OperatorModelIdentity, OperatorReplayService
 
 ACCEPTED_PROTOTYPE_MODEL_SHA256: Final = (
@@ -27,6 +28,9 @@ _DEFAULT_MODEL_BUNDLE = Path("data/processed/vnat-release-1/prototype-model.json
 _DEFAULT_CALIBRATION_ARTIFACT = Path("data/processed/vnat-release-1/prototype-ood-calibration.json")
 
 
+_DEFAULT_HISTORY_DATABASE = Path("data/operator/parallax-operator.sqlite3")
+
+
 @dataclass(frozen=True, slots=True)
 class OperatorApplicationConfig:
     """Filesystem configuration for the local operator application."""
@@ -34,6 +38,7 @@ class OperatorApplicationConfig:
     capture_root: Path
     model_bundle: Path
     calibration_artifact: Path
+    history_database: Path
 
     @classmethod
     def from_environment(cls) -> "OperatorApplicationConfig":
@@ -55,6 +60,12 @@ class OperatorApplicationConfig:
                 environ.get(
                     "PARALLAX_CALIBRATION_ARTIFACT",
                     str(_DEFAULT_CALIBRATION_ARTIFACT),
+                )
+            ),
+            history_database=Path(
+                environ.get(
+                    "PARALLAX_HISTORY_DATABASE",
+                    str(_DEFAULT_HISTORY_DATABASE),
                 )
             ),
         )
@@ -79,6 +90,7 @@ def create_operator_application(
         capture_root=resolved.capture_root,
         scorer=runtime,
         model_identity=OperatorModelIdentity.from_runtime(runtime),
+        history=SqliteOperatorHistory(resolved.history_database),
     )
 
     return create_operator_app(service)

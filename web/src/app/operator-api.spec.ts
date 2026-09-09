@@ -303,4 +303,71 @@ describe('OperatorApi', () => {
 
     expect(connectionError).toHaveBeenCalledOnce();
   });
+
+  it('loads replay history with the default limit', () => {
+    api.listHistory().subscribe((response) => {
+      expect(response.replays).toEqual([]);
+    });
+
+    const request = http.expectOne(
+      '/api/v1/history?limit=100',
+    );
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      replays: [],
+    });
+  });
+
+  it('loads replay history with an explicit limit', () => {
+    api.listHistory(25).subscribe();
+
+    const request = http.expectOne(
+      '/api/v1/history?limit=25',
+    );
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      replays: [],
+    });
+  });
+
+  it('loads one historical replay', () => {
+    api.getHistoryReplay('run 001').subscribe();
+
+    const request = http.expectOne(
+      '/api/v1/history/run%20001',
+    );
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      run_id: 'run 001',
+      source_id: 'capture.pcap',
+      source_sha256: 'a'.repeat(64),
+      state: 'completed',
+      time_scale: 1,
+      event_count: 1,
+      failure: null,
+    });
+  });
+
+  it('loads historical prediction events', () => {
+    api.getHistoryEvents('run 001').subscribe();
+
+    const request = http.expectOne(
+      '/api/v1/history/run%20001/events',
+    );
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      run_id: 'run 001',
+      events: [],
+    });
+  });
+
+
 });

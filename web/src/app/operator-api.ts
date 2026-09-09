@@ -1,10 +1,13 @@
-import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
 import {
   ControlResponse,
   HealthResponse,
+  ReplayHistoryEventsResponse,
+  ReplayHistoryRecord,
+  ReplayHistoryResponse,
   ReplaySnapshot,
   ReplayTerminalEvent,
   RuntimePredictionEvent,
@@ -26,6 +29,26 @@ export class OperatorApi {
 
   health(): Observable<HealthResponse> {
     return this.http.get<HealthResponse>('/health');
+  }
+
+  listHistory(limit = 100): Observable<ReplayHistoryResponse> {
+    return this.http.get<ReplayHistoryResponse>(
+      `/api/v1/history?limit=${limit}`,
+    );
+  }
+
+  getHistoryReplay(runId: string): Observable<ReplayHistoryRecord> {
+    return this.http.get<ReplayHistoryRecord>(
+      `/api/v1/history/${encodeURIComponent(runId)}`,
+    );
+  }
+
+  getHistoryEvents(
+    runId: string,
+  ): Observable<ReplayHistoryEventsResponse> {
+    return this.http.get<ReplayHistoryEventsResponse>(
+      `/api/v1/history/${encodeURIComponent(runId)}/events`,
+    );
   }
 
   startReplay(request: StartReplayRequest): Observable<ReplaySnapshot> {

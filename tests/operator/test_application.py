@@ -75,6 +75,7 @@ def test_environment_configuration_uses_repository_defaults(
     monkeypatch.delenv("PARALLAX_CAPTURE_ROOT", raising=False)
     monkeypatch.delenv("PARALLAX_MODEL_BUNDLE", raising=False)
     monkeypatch.delenv("PARALLAX_CALIBRATION_ARTIFACT", raising=False)
+    monkeypatch.delenv("PARALLAX_HISTORY_DATABASE", raising=False)
 
     config = OperatorApplicationConfig.from_environment()
 
@@ -82,6 +83,7 @@ def test_environment_configuration_uses_repository_defaults(
         capture_root=Path("data/raw/vnat/selected-pcaps"),
         model_bundle=Path("data/processed/vnat-release-1/prototype-model.json"),
         calibration_artifact=Path("data/processed/vnat-release-1/prototype-ood-calibration.json"),
+        history_database=Path("data/operator/parallax-operator.sqlite3"),
     )
 
 
@@ -94,12 +96,17 @@ def test_environment_configuration_accepts_path_overrides(
         "PARALLAX_CALIBRATION_ARTIFACT",
         "/models/calibration.json",
     )
+    monkeypatch.setenv(
+        "PARALLAX_HISTORY_DATABASE",
+        "/state/operator.sqlite3",
+    )
 
     assert OperatorApplicationConfig.from_environment() == (
         OperatorApplicationConfig(
             capture_root=Path("/captures"),
             model_bundle=Path("/models/model.json"),
             calibration_artifact=Path("/models/calibration.json"),
+            history_database=Path("/state/operator.sqlite3"),
         )
     )
 
@@ -114,6 +121,7 @@ def test_application_binds_explicit_paths_to_accepted_artifact_identity(
         capture_root=tmp_path,
         model_bundle=tmp_path / "model.json",
         calibration_artifact=tmp_path / "calibration.json",
+        history_database=tmp_path / "operator.sqlite3",
     )
 
     app = create_operator_application(config)
@@ -155,6 +163,10 @@ def test_application_can_boot_from_environment(
     monkeypatch.setenv(
         "PARALLAX_CALIBRATION_ARTIFACT",
         str(tmp_path / "calibration.json"),
+    )
+    monkeypatch.setenv(
+        "PARALLAX_HISTORY_DATABASE",
+        str(tmp_path / "operator.sqlite3"),
     )
 
     app = create_operator_application()

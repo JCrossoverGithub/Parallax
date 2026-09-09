@@ -9,6 +9,11 @@ from threading import RLock, Thread
 from uuid import uuid4
 
 from parallax.modeling.runtime import PrototypeRuntime
+from parallax.operator.history import (
+    OperatorHistoryError,
+    OperatorHistoryRecord,
+    SqliteOperatorHistory,
+)
 from parallax.replay import (
     ReplayConfiguration,
     ReplayControl,
@@ -150,6 +155,7 @@ class OperatorReplayService:
         capture_root: str | Path,
         scorer: RuntimeScorer,
         model_identity: OperatorModelIdentity,
+        history: SqliteOperatorHistory | None = None,
         event_history_limit: int = 10_000,
     ) -> None:
         if event_history_limit < 1:
@@ -158,6 +164,7 @@ class OperatorReplayService:
         self._capture_root = Path(capture_root)
         self._scorer = scorer
         self._model_identity = model_identity
+        self._history = history
         self._event_history_limit = event_history_limit
         self._records: dict[str, _ReplayRecord] = {}
         self._lock = RLock()
@@ -216,6 +223,8 @@ class OperatorReplayService:
             self._records[run_id] = record
             snapshot = self._snapshot(record, run_id=run_id)
 
+        self._persist_replay(record, run_id=run_id)
+
         thread = Thread(
             target=self._execute_replay,
             args=(run_id, source, configuration),
@@ -237,6 +246,45 @@ class OperatorReplayService:
         with self._lock:
             record = self._require_record(run_id)
             return tuple(event.as_dict() for event in record.events)
+
+    def list_history(
+        self,
+        *,
+        limit: int = 100,
+    ) -> tuple[OperatorHistoryRecord, ...]:
+        """Return persisted replay history newest first."""
+        if self._history is None:
+            return ()
+
+        try:
+            return self._history.list_replays(limit=limit)
+        except OperatorHistoryError as error:
+            raise OperatorServiceError(str(error)) from error
+
+    def get_history_replay(
+        self,
+        run_id: str,
+    ) -> OperatorHistoryRecord:
+        """Return one persisted replay summary."""
+        if self._history is None:
+            raise OperatorReplayNotFoundError(f"persisted replay {run_id!r} does not exist")
+
+        record = self._history.get_replay(run_id)
+
+        if record is None:
+            raise OperatorReplayNotFoundError(f"persisted replay {run_id!r} does not exist")
+
+        return record
+
+    def get_history_events(
+        self,
+        run_id: str,
+    ) -> tuple[dict[str, object], ...]:
+        """Return persisted prediction events for one replay."""
+        self.get_history_replay(run_id)
+
+        assert self._history is not None
+        return self._history.get_events(run_id)
 
     def get_event_batch(
         self,
@@ -350,6 +398,19 @@ class OperatorReplayService:
             record = self._require_record(run_id)
             record.events.append(event)
             record.total_events += 1
+            sequence = record.total_events
+            history_record = self._make_history_record(
+                record,
+                run_id=run_id,
+            )
+
+        if self._history is not None:
+            self._history.save_event(
+                run_id,
+                sequence,
+                event.as_dict(),
+            )
+            self._history.save_replay(history_record)
 
     def _update_session(
         self,
@@ -357,7 +418,48 @@ class OperatorReplayService:
         session: ReplaySession,
     ) -> None:
         with self._lock:
-            self._require_record(run_id).session = session
+            record = self._require_record(run_id)
+            record.session = session
+            history_record = self._make_history_record(
+                record,
+                run_id=run_id,
+            )
+
+        if self._history is not None:
+            self._history.save_replay(history_record)
+
+    def _persist_replay(
+        self,
+        record: _ReplayRecord,
+        *,
+        run_id: str,
+    ) -> None:
+        if self._history is not None:
+            self._history.save_replay(
+                self._make_history_record(
+                    record,
+                    run_id=run_id,
+                )
+            )
+
+    @staticmethod
+    def _make_history_record(
+        record: _ReplayRecord,
+        *,
+        run_id: str,
+    ) -> OperatorHistoryRecord:
+        failure = record.session.failure
+
+        return OperatorHistoryRecord(
+            run_id=run_id,
+            source_id=record.session.source_id,
+            source_sha256=record.session.source_sha256,
+            state=record.session.state,
+            time_scale=record.session.configuration.time_scale,
+            event_count=record.total_events,
+            failure_code=None if failure is None else failure.code,
+            failure_message=None if failure is None else failure.message,
+        )
 
     def _resolve_capture(self, capture_name: str) -> Path:
         if not capture_name or Path(capture_name).name != capture_name:
