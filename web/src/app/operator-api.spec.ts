@@ -314,6 +314,65 @@ describe('OperatorApi', () => {
       events: [],
     });
   });
+
+  it('loads live history with the default limit', () => {
+    api.listLiveHistory().subscribe((response) => {
+      expect(response.live_sessions).toEqual([]);
+    });
+
+    const request = http.expectOne('/api/v1/history/live?limit=100');
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      live_sessions: [],
+    });
+  });
+
+  it('loads live history with an explicit limit', () => {
+    api.listLiveHistory(25).subscribe();
+
+    const request = http.expectOne('/api/v1/history/live?limit=25');
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      live_sessions: [],
+    });
+  });
+
+  it('loads one historical live session', () => {
+    api.getHistoryLive('live 001').subscribe();
+
+    const request = http.expectOne('/api/v1/history/live/live%20001');
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      run_id: 'live 001',
+      state: 'completed',
+      configuration: {
+        interface: 'eth0',
+        stale_after_seconds: 120,
+        max_tracked_flows: 4096,
+      },
+      event_count: 1,
+      failure: null,
+    });
+  });
+
+  it('loads historical live prediction events', () => {
+    api.getHistoryLiveEvents('live 001').subscribe();
+
+    const request = http.expectOne('/api/v1/history/live/live%20001/events');
+
+    expect(request.request.method).toBe('GET');
+
+    request.flush({
+      run_id: 'live 001',
+      events: [],
+    });
+  });
 });
 
 describe('OperatorApi live sensor', () => {

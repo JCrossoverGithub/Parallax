@@ -75,6 +75,14 @@ export interface LiveSessionSnapshot {
   failure: LiveFailure | null;
 }
 
+export interface LiveHistoryRecord extends LiveSessionSnapshot {
+  event_count: number;
+}
+
+export interface LiveHistoryResponse {
+  live_sessions: LiveHistoryRecord[];
+}
+
 export interface RuntimePredictionEvent {
   schema_version: string;
   run_id: string;
@@ -111,6 +119,8 @@ export interface PredictionEventsResponse {
 }
 
 export type ReplayHistoryEventsResponse = PredictionEventsResponse;
+
+export type LiveHistoryEventsResponse = PredictionEventsResponse;
 
 export type LiveEventsResponse = PredictionEventsResponse & {
   last_sequence: number;

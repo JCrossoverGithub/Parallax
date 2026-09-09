@@ -7,6 +7,7 @@ import { LiveStreamHandlers, OperatorApi, ReplayStreamHandlers } from './operato
 import {
   HealthResponse,
   LiveEventsResponse,
+  LiveHistoryResponse,
   LiveInterfacesResponse,
   LiveSessionSnapshot,
   ReplayHistoryResponse,
@@ -109,6 +110,27 @@ class FakeOperatorApi {
   readonly listHistory = vi.fn<() => Observable<ReplayHistoryResponse>>(() =>
     of({
       replays: [],
+    }),
+  );
+
+  readonly listLiveHistory = vi.fn<() => Observable<LiveHistoryResponse>>(() =>
+    of({
+      live_sessions: [],
+    }),
+  );
+
+  readonly getHistoryLive = vi.fn((runId: string) =>
+    of({
+      ...LIVE_COMPLETED,
+      run_id: runId,
+      event_count: 1,
+    }),
+  );
+
+  readonly getHistoryLiveEvents = vi.fn((runId: string) =>
+    of({
+      run_id: runId,
+      events: [PREDICTION],
     }),
   );
 
@@ -521,12 +543,12 @@ describe('App', () => {
     ]);
   });
 
-  it('surfaces replay history loading failures', () => {
+  it('surfaces session history loading failures', () => {
     api.listHistory.mockReturnValue(throwError(() => new Error('offline')));
 
     component.loadHistory();
 
-    expect(component.error()).toBe('Unable to load replay history.');
+    expect(component.error()).toBe('Unable to load session history.');
   });
 
   it('opens a persisted replay and restores its predictions', () => {
@@ -550,6 +572,7 @@ describe('App', () => {
     expect(api.getHistoryEvents).toHaveBeenCalledWith('history-001');
 
     expect(component.selectedHistoryRunId()).toBe('history-001');
+    expect(component.selectedHistoryKind()).toBe('replay');
 
     expect(component.replay()).toEqual({
       ...COMPLETED,
@@ -607,6 +630,98 @@ describe('App', () => {
     component.openHistory('missing');
 
     expect(component.error()).toBe('Unable to open replay history.');
+    expect(component.historyBusy()).toBe(false);
+  });
+
+  it('loads persisted live history', () => {
+    api.listLiveHistory.mockReturnValue(
+      of({
+        live_sessions: [
+          {
+            ...LIVE_COMPLETED,
+            run_id: 'live-history-001',
+            event_count: 2,
+          },
+        ],
+      }),
+    );
+
+    component.loadHistory();
+
+    expect(component.liveHistory()).toEqual([
+      {
+        ...LIVE_COMPLETED,
+        run_id: 'live-history-001',
+        event_count: 2,
+      },
+    ]);
+
+    expect(component.historyCount()).toBe(1);
+  });
+
+  it('opens a persisted live session and restores its predictions', () => {
+    const livePrediction: RuntimePredictionEvent = {
+      ...PREDICTION,
+      run_id: 'live-history-001',
+      window: {
+        ...PREDICTION.window,
+        capture_id: 'live:eth0:live-history-001',
+      },
+    };
+
+    api.getHistoryLive.mockReturnValue(
+      of({
+        ...LIVE_COMPLETED,
+        run_id: 'live-history-001',
+        event_count: 1,
+      }),
+    );
+
+    api.getHistoryLiveEvents.mockReturnValue(
+      of({
+        run_id: 'live-history-001',
+        events: [livePrediction],
+      }),
+    );
+
+    component.openLiveHistory('live-history-001');
+
+    expect(api.getHistoryLive).toHaveBeenCalledWith('live-history-001');
+    expect(api.getHistoryLiveEvents).toHaveBeenCalledWith('live-history-001');
+
+    expect(component.workspace()).toBe('history');
+    expect(component.selectedHistoryRunId()).toBe('live-history-001');
+    expect(component.selectedHistoryKind()).toBe('live');
+
+    expect(component.live()?.run_id).toBe('live-history-001');
+    expect(component.currentState()).toBe('completed');
+    expect(component.currentSource()).toBe('eth0');
+    expect(component.predictions()).toEqual([livePrediction]);
+
+    expect(component.historyBusy()).toBe(false);
+  });
+
+  it('surfaces persisted live history opening failures', () => {
+    api.getHistoryLive.mockReturnValue(
+      throwError(() => ({
+        error: {
+          detail: 'persisted live session does not exist',
+        },
+      })),
+    );
+
+    component.openLiveHistory('missing');
+
+    expect(component.error()).toBe('persisted live session does not exist');
+    expect(component.historyBusy()).toBe(false);
+  });
+
+  it('uses fallback text for live history opening failures', () => {
+    api.getHistoryLive.mockReturnValue(throwError(() => ({})));
+
+    component.openLiveHistory('missing');
+
+    expect(component.error()).toBe('Unable to open live history.');
     expect(component.historyBusy()).toBe(false);
   });
 

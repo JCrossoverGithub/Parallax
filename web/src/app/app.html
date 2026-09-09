@@ -242,49 +242,106 @@
           <div class="panel-heading">
             <div>
               <span class="panel-kicker"> ARCHIVE </span>
-              <h2>Replay history</h2>
+              <h2>Session history</h2>
             </div>
 
-            <span class="panel-meta"> {{ history().length }} stored sessions </span>
+            <span class="panel-meta"> {{ historyCount() }} stored sessions </span>
           </div>
 
-          @if (history().length === 0) {
-            <div class="empty-state">No persisted replay sessions are available.</div>
+          @if (historyCount() === 0) {
+            <div class="empty-state">No persisted live or replay sessions are available.</div>
           } @else {
-            <div class="history-list">
-              @for (item of history(); track item.run_id) {
-                <button
-                  type="button"
-                  class="history-row"
-                  [class.selected]="selectedHistoryRunId() === item.run_id"
-                  [disabled]="anyActive() || historyBusy()"
-                  (click)="openHistory(item.run_id)"
-                >
-                  <span class="history-source">
-                    <strong>
-                      {{ item.source_id }}
-                    </strong>
+            @if (liveHistory().length > 0) {
+              <div class="panel-heading">
+                <div>
+                  <span class="panel-kicker"> LIVE SENSOR </span>
+                </div>
 
-                    <code>
-                      {{ item.run_id }}
-                    </code>
-                  </span>
+                <span class="panel-meta"> {{ liveHistory().length }} sessions </span>
+              </div>
 
-                  <span class="state-badge" [attr.data-state]="item.state">
-                    {{ item.state }}
-                  </span>
+              <div class="history-list">
+                @for (item of liveHistory(); track item.run_id) {
+                  <button
+                    type="button"
+                    class="history-row"
+                    [class.selected]="
+                      selectedHistoryKind() === 'live' && selectedHistoryRunId() === item.run_id
+                    "
+                    [disabled]="anyActive() || historyBusy()"
+                    (click)="openLiveHistory(item.run_id)"
+                  >
+                    <span class="history-source">
+                      <strong>
+                        {{ item.configuration.interface }}
+                      </strong>
 
-                  <span class="history-stat">
-                    {{ item.event_count }}
-                    events
-                  </span>
+                      <code>
+                        {{ item.run_id }}
+                      </code>
+                    </span>
 
-                  <span class="history-stat">
-                    {{ item.time_scale === null ? 'max' : item.time_scale + 'x' }}
-                  </span>
-                </button>
-              }
-            </div>
+                    <span class="state-badge" [attr.data-state]="item.state">
+                      {{ item.state }}
+                    </span>
+
+                    <span class="history-stat">
+                      {{ item.event_count }}
+                      events
+                    </span>
+
+                    <span class="history-stat"> LIVE </span>
+                  </button>
+                }
+              </div>
+            }
+
+            @if (history().length > 0) {
+              <div class="panel-heading">
+                <div>
+                  <span class="panel-kicker"> REPLAY </span>
+                </div>
+
+                <span class="panel-meta"> {{ history().length }} sessions </span>
+              </div>
+
+              <div class="history-list">
+                @for (item of history(); track item.run_id) {
+                  <button
+                    type="button"
+                    class="history-row"
+                    [class.selected]="
+                      selectedHistoryKind() === 'replay' && selectedHistoryRunId() === item.run_id
+                    "
+                    [disabled]="anyActive() || historyBusy()"
+                    (click)="openHistory(item.run_id)"
+                  >
+                    <span class="history-source">
+                      <strong>
+                        {{ item.source_id }}
+                      </strong>
+
+                      <code>
+                        {{ item.run_id }}
+                      </code>
+                    </span>
+
+                    <span class="state-badge" [attr.data-state]="item.state">
+                      {{ item.state }}
+                    </span>
+
+                    <span class="history-stat">
+                      {{ item.event_count }}
+                      events
+                    </span>
+
+                    <span class="history-stat">
+                      {{ item.time_scale === null ? 'max' : item.time_scale + 'x' }}
+                    </span>
+                  </button>
+                }
+              </div>
+            }
           }
         </section>
       }
@@ -703,7 +760,7 @@
           </div>
 
           <dl>
-            @if (replay()?.source_sha256 && workspace() !== 'live') {
+            @if (replay()?.source_sha256 && showingReplayContext()) {
               <div>
                 <dt>Capture SHA-256</dt>
                 <dd>

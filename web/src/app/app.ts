@@ -6,6 +6,7 @@ import { forkJoin } from 'rxjs';
 import { OperatorApi } from './operator-api';
 import {
   HealthResponse,
+  LiveHistoryRecord,
   LiveInterface,
   LiveSessionSnapshot,
   ReplayHistoryRecord,
@@ -14,6 +15,8 @@ import {
 } from './operator.types';
 
 type Workspace = 'live' | 'replay' | 'history';
+
+type HistoryKind = 'live' | 'replay';
 
 @Component({
   selector: 'app-root',
@@ -35,6 +38,7 @@ export class App implements OnDestroy {
   readonly selectedPrediction = signal<RuntimePredictionEvent | null>(null);
 
   readonly history = signal<ReplayHistoryRecord[]>([]);
+  readonly liveHistory = signal<LiveHistoryRecord[]>([]);
   readonly liveInterfaces = signal<LiveInterface[]>([]);
 
   readonly workspace = signal<Workspace>('live');
@@ -46,6 +50,7 @@ export class App implements OnDestroy {
   readonly historyBusy = signal(false);
 
   readonly selectedHistoryRunId = signal<string | null>(null);
+  readonly selectedHistoryKind = signal<HistoryKind | null>(null);
 
   capture = 'nonvpn_ssh_capture4.pcap';
   timeScale = 1;
@@ -106,9 +111,29 @@ export class App implements OnDestroy {
     return values.length === 0 ? null : values[values.length - 1];
   });
 
+  readonly historyCount = computed(() => this.history().length + this.liveHistory().length);
+
+  readonly showingReplayContext = computed(
+    () =>
+      this.workspace() === 'replay' ||
+      (this.workspace() === 'history' && this.selectedHistoryKind() === 'replay'),
+  );
+
   readonly currentState = computed(() => {
     if (this.workspace() === 'live') {
       return this.live()?.state ?? 'idle';
+    }
+
+    if (this.workspace() === 'history') {
+      if (this.selectedHistoryKind() === 'live') {
+        return this.live()?.state ?? 'idle';
+      }
+
+      if (this.selectedHistoryKind() === 'replay') {
+        return this.replay()?.state ?? 'idle';
+      }
+
+      return 'idle';
     }
 
     return this.replay()?.state ?? 'idle';
@@ -119,12 +144,36 @@ export class App implements OnDestroy {
       return this.live()?.run_id ?? null;
     }
 
+    if (this.workspace() === 'history') {
+      if (this.selectedHistoryKind() === 'live') {
+        return this.live()?.run_id ?? null;
+      }
+
+      if (this.selectedHistoryKind() === 'replay') {
+        return this.replay()?.run_id ?? null;
+      }
+
+      return null;
+    }
+
     return this.replay()?.run_id ?? null;
   });
 
   readonly currentSource = computed(() => {
     if (this.workspace() === 'live') {
       return this.live()?.configuration.interface ?? this.liveInterface ?? '—';
+    }
+
+    if (this.workspace() === 'history') {
+      if (this.selectedHistoryKind() === 'live') {
+        return this.live()?.configuration.interface ?? '—';
+      }
+
+      if (this.selectedHistoryKind() === 'replay') {
+        return this.replay()?.source_id ?? '—';
+      }
+
+      return '—';
     }
 
     return this.replay()?.source_id ?? '—';
@@ -152,7 +201,7 @@ export class App implements OnDestroy {
         return 'Reproduce and inspect frozen PCAP workloads through the same prediction runtime.';
 
       case 'history':
-        return 'Review persisted replay sessions, predictions, and model provenance.';
+        return 'Review persisted live and replay sessions, predictions, and model provenance.';
     }
   });
 
@@ -197,6 +246,7 @@ export class App implements OnDestroy {
 
     if (workspace !== 'history') {
       this.selectedHistoryRunId.set(null);
+      this.selectedHistoryKind.set(null);
     }
   }
 
@@ -231,12 +281,16 @@ export class App implements OnDestroy {
   }
 
   loadHistory(): void {
-    this.api.listHistory().subscribe({
-      next: (response) => {
-        this.history.set(response.replays);
+    forkJoin({
+      replay: this.api.listHistory(),
+      live: this.api.listLiveHistory(),
+    }).subscribe({
+      next: ({ replay, live }) => {
+        this.history.set(replay.replays);
+        this.liveHistory.set(live.live_sessions);
       },
       error: () => {
-        this.error.set('Unable to load replay history.');
+        this.error.set('Unable to load session history.');
       },
     });
   }
@@ -298,6 +352,7 @@ export class App implements OnDestroy {
     this.liveBusy.set(true);
     this.error.set(null);
     this.selectedHistoryRunId.set(null);
+    this.selectedHistoryKind.set(null);
     this.livePredictions.set([]);
     this.selectedPrediction.set(null);
 
@@ -377,6 +432,7 @@ export class App implements OnDestroy {
       next: ({ replay, events }) => {
         this.workspace.set('history');
         this.selectedHistoryRunId.set(runId);
+        this.selectedHistoryKind.set('replay');
 
         this.replay.set({
           ...replay,
@@ -394,6 +450,39 @@ export class App implements OnDestroy {
     });
   }
 
+  openLiveHistory(runId: string): void {
+    if (this.anyActive() || this.historyBusy()) {
+      return;
+    }
+
+    this.historyBusy.set(true);
+    this.error.set(null);
+
+    this.closeStream();
+    this.stopPolling();
+    this.selectedPrediction.set(null);
+
+    forkJoin({
+      live: this.api.getHistoryLive(runId),
+      events: this.api.getHistoryLiveEvents(runId),
+    }).subscribe({
+      next: ({ live, events }) => {
+        this.workspace.set('history');
+        this.selectedHistoryRunId.set(runId);
+        this.selectedHistoryKind.set('live');
+
+        this.live.set(live);
+        this.historyPredictions.set(events.events);
+        this.historyBusy.set(false);
+      },
+      error: (response) => {
+        this.historyBusy.set(false);
+
+        this.error.set(response?.error?.detail ?? 'Unable to open live history.');
+      },
+    });
+  }
+
   startReplay(): void {
     if (!this.capture.trim() || this.busy() || this.liveActive()) {
       return;
@@ -403,6 +492,7 @@ export class App implements OnDestroy {
     this.busy.set(true);
     this.error.set(null);
     this.selectedHistoryRunId.set(null);
+    this.selectedHistoryKind.set(null);
     this.replayPredictions.set([]);
     this.selectedPrediction.set(null);
 
@@ -554,6 +644,7 @@ export class App implements OnDestroy {
 
           this.stopPolling();
           this.loadHealth();
+          this.loadHistory();
         },
 
         streamError: (detail) => {
@@ -609,6 +700,10 @@ export class App implements OnDestroy {
           session.state === 'failed'
         ) {
           this.stopPolling();
+
+          if (session.state === 'completed' || session.state === 'failed') {
+            this.loadHistory();
+          }
         }
       },
     });

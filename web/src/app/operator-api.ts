@@ -7,6 +7,9 @@ import {
   HealthResponse,
   LiveControlResponse,
   LiveEventsResponse,
+  LiveHistoryEventsResponse,
+  LiveHistoryRecord,
+  LiveHistoryResponse,
   LiveInterfacesResponse,
   LiveSessionSnapshot,
   LiveTerminalEvent,
@@ -89,6 +92,20 @@ export class OperatorApi {
   getHistoryEvents(runId: string): Observable<ReplayHistoryEventsResponse> {
     return this.http.get<ReplayHistoryEventsResponse>(
       `/api/v1/history/${encodeURIComponent(runId)}/events`,
+    );
+  }
+
+  listLiveHistory(limit = 100): Observable<LiveHistoryResponse> {
+    return this.http.get<LiveHistoryResponse>(`/api/v1/history/live?limit=${limit}`);
+  }
+
+  getHistoryLive(runId: string): Observable<LiveHistoryRecord> {
+    return this.http.get<LiveHistoryRecord>(`/api/v1/history/live/${encodeURIComponent(runId)}`);
+  }
+
+  getHistoryLiveEvents(runId: string): Observable<LiveHistoryEventsResponse> {
+    return this.http.get<LiveHistoryEventsResponse>(
+      `/api/v1/history/live/${encodeURIComponent(runId)}/events`,
     );
   }
 
