@@ -11,6 +11,19 @@ class OperatorLiveSessionError(ValueError):
     """Raised when a live operator session is invalid."""
 
 
+class OperatorLiveExecutionError(RuntimeError):
+    """Structured failure raised by a live runtime executor."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+
+
 class OperatorLiveState(StrEnum):
     """Lifecycle state for one operator-controlled live sensor session."""
 

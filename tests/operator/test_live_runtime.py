@@ -18,6 +18,7 @@ from parallax.operator import (
     OperatorLiveRuntimeExecutor,
 )
 from parallax.runtime import RuntimePredictionEvent
+from parallax.runtime.live import RuntimePacketSource
 
 
 class FakeScorer:
@@ -217,3 +218,84 @@ def test_default_factory_uses_sensor_ipc_packet_source(
             "eth0",
         )
     ]
+
+
+def test_operator_executor_preserves_sensor_failure_code() -> None:
+    from parallax.operator.live import (
+        OperatorLiveExecutionError,
+    )
+    from parallax.sensor.ipc_client import (
+        SensorIpcClientError,
+    )
+
+    def fail_source(
+        socket_path: Path,
+        interface: str,
+    ) -> RuntimePacketSource:
+        assert socket_path == Path("/tmp/parallax-sensor.sock")
+        assert interface == "eth0"
+
+        raise SensorIpcClientError(
+            "permission denied",
+            code="capture_error",
+        )
+
+    executor = OperatorLiveRuntimeExecutor(
+        FakeScorer(),
+        sensor_socket_path=("/tmp/parallax-sensor.sock"),
+        source_factory=fail_source,
+    )
+
+    with pytest.raises(
+        OperatorLiveExecutionError,
+        match="permission denied",
+    ) as failure:
+        executor(
+            "live-structured-error",
+            OperatorLiveConfiguration(
+                interface="eth0",
+                stale_after_seconds=120.0,
+                max_tracked_flows=4_096,
+            ),
+            Event(),
+            lambda event: None,
+        )
+
+    assert failure.value.code == "capture_error"
+
+
+def test_operator_executor_classifies_unstructured_ipc_failure() -> None:
+    from parallax.operator.live import (
+        OperatorLiveExecutionError,
+    )
+    from parallax.sensor.ipc_client import (
+        SensorIpcClientError,
+    )
+
+    def fail_source(
+        socket_path: Path,
+        interface: str,
+    ) -> RuntimePacketSource:
+        raise SensorIpcClientError("could not open sensor IPC packet source")
+
+    executor = OperatorLiveRuntimeExecutor(
+        FakeScorer(),
+        source_factory=fail_source,
+    )
+
+    with pytest.raises(
+        OperatorLiveExecutionError,
+        match=("could not open sensor IPC packet source"),
+    ) as failure:
+        executor(
+            "live-ipc-error",
+            OperatorLiveConfiguration(
+                interface="eth0",
+                stale_after_seconds=120.0,
+                max_tracked_flows=4_096,
+            ),
+            Event(),
+            lambda event: None,
+        )
+
+    assert failure.value.code == "sensor_ipc_error"

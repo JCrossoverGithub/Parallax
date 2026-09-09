@@ -4,7 +4,10 @@ from collections.abc import Callable
 from pathlib import Path
 from threading import Event
 
-from parallax.operator.live import OperatorLiveConfiguration
+from parallax.operator.live import (
+    OperatorLiveConfiguration,
+    OperatorLiveExecutionError,
+)
 from parallax.runtime import (
     LiveRuntimeSummary,
     PacketPredictionPipeline,
@@ -17,6 +20,7 @@ from parallax.sensor import (
     DEFAULT_SENSOR_IPC_SOCKET_PATH,
     SensorIpcPacketSource,
 )
+from parallax.sensor.ipc_client import SensorIpcClientError
 
 LivePacketSourceFactory = Callable[
     [Path, str],
@@ -65,21 +69,27 @@ class OperatorLiveRuntimeExecutor:
         ],
     ) -> LiveRuntimeSummary:
         """Run one live sensor until the operator requests termination."""
-        source = self._source_factory(
-            self._sensor_socket_path,
-            configuration.interface,
-        )
+        try:
+            source = self._source_factory(
+                self._sensor_socket_path,
+                configuration.interface,
+            )
 
-        pipeline = PacketPredictionPipeline(
-            run_id=run_id,
-            capture_id=(f"live:{configuration.interface}:{run_id}"),
-            scorer=self._scorer,
-            flow_config=configuration.flow_config(),
-        )
+            pipeline = PacketPredictionPipeline(
+                run_id=run_id,
+                capture_id=(f"live:{configuration.interface}:{run_id}"),
+                scorer=self._scorer,
+                flow_config=configuration.flow_config(),
+            )
 
-        return run_live_packet_predictions(
-            source,
-            pipeline=pipeline,
-            stop_requested=stop_event.is_set,
-            handle_event=handle_event,
-        )
+            return run_live_packet_predictions(
+                source,
+                pipeline=pipeline,
+                stop_requested=stop_event.is_set,
+                handle_event=handle_event,
+            )
+        except SensorIpcClientError as error:
+            raise OperatorLiveExecutionError(
+                str(error),
+                code=(error.code if error.code is not None else "sensor_ipc_error"),
+            ) from error

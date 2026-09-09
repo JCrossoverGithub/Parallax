@@ -993,3 +993,94 @@ def test_configured_history_rejects_unknown_live_session(
         match="persisted live session",
     ):
         service.get_history_live_events("missing")
+
+
+def test_structured_executor_failure_preserves_code(
+    tmp_path: Path,
+) -> None:
+    from parallax.operator.live import (
+        OperatorLiveExecutionError,
+    )
+
+    def fail(
+        run_id: str,
+        configuration: OperatorLiveConfiguration,
+        stop_event: Event,
+        handle_event: object,
+    ) -> None:
+        raise OperatorLiveExecutionError(
+            "capture permission denied",
+            code="capture_error",
+        )
+
+    service = _service(
+        tmp_path,
+        executor=fail,
+    )
+
+    created = service.start_live("eth0")
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        OperatorLiveState.FAILED,
+    )
+
+    failed = service.get_live(created.run_id)
+
+    assert failed.failure is not None
+    assert failed.failure.code == "capture_error"
+    assert failed.failure.message == "capture permission denied"
+
+
+def test_structured_executor_failure_is_persisted(
+    tmp_path: Path,
+) -> None:
+    from typing import cast
+
+    from parallax.operator.history import (
+        SqliteOperatorHistory,
+    )
+    from parallax.operator.live import (
+        OperatorLiveExecutionError,
+    )
+    from parallax.runtime import RuntimeScorer
+
+    def fail(
+        run_id: str,
+        configuration: OperatorLiveConfiguration,
+        stop_event: Event,
+        handle_event: object,
+    ) -> None:
+        raise OperatorLiveExecutionError(
+            "sensor capture failed",
+            code="capture_error",
+        )
+
+    history = SqliteOperatorHistory(tmp_path / "operator.sqlite3")
+
+    service = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=cast(
+            RuntimeScorer,
+            object(),
+        ),
+        model_identity=_identity(),
+        history=history,
+        live_executor=fail,
+        live_interface_lister=_interfaces,
+        live_interface_resolver=_resolve_interface,
+    )
+
+    created = service.start_live("eth0")
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        OperatorLiveState.FAILED,
+    )
+
+    persisted = service.get_history_live(created.run_id)
+
+    assert persisted.failure_code == "capture_error"
+    assert persisted.failure_message == "sensor capture failed"

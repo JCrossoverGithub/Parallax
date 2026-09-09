@@ -17,6 +17,7 @@ from parallax.operator.history import (
 )
 from parallax.operator.live import (
     OperatorLiveConfiguration,
+    OperatorLiveExecutionError,
     OperatorLiveSession,
     OperatorLiveSessionError,
     OperatorLiveState,
@@ -690,6 +691,18 @@ class OperatorReplayService:
                     event,
                 ),
             )
+        except OperatorLiveExecutionError as error:
+            with self._lock:
+                record = self._require_live_record(run_id)
+                record.session = record.session.fail(
+                    code=error.code,
+                    message=str(error),
+                )
+                self._persist_live(
+                    record,
+                    run_id=run_id,
+                )
+            return
         except Exception as error:
             with self._lock:
                 record = self._require_live_record(run_id)
