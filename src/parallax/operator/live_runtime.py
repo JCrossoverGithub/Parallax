@@ -1,6 +1,7 @@
-"""Production runtime execution for operator-owned live sensor sessions."""
+"""Production execution for operator-owned live sensor sessions."""
 
 from collections.abc import Callable
+from pathlib import Path
 from threading import Event
 
 from parallax.operator.live import OperatorLiveConfiguration
@@ -11,38 +12,47 @@ from parallax.runtime import (
     RuntimeScorer,
     run_live_packet_predictions,
 )
+from parallax.runtime.live import RuntimePacketSource
 from parallax.sensor import (
-    CaptureInterface,
-    LiveEthernetCapture,
-    LivePacketSource,
-    resolve_capture_interface,
+    DEFAULT_SENSOR_IPC_SOCKET_PATH,
+    SensorIpcPacketSource,
 )
 
-LiveCaptureFactory = Callable[
-    [CaptureInterface],
-    LiveEthernetCapture,
+LivePacketSourceFactory = Callable[
+    [Path, str],
+    RuntimePacketSource,
 ]
 
 
+def _default_source_factory(
+    socket_path: Path,
+    interface: str,
+) -> RuntimePacketSource:
+    return SensorIpcPacketSource(
+        socket_path,
+        interface,
+    )
+
+
 class OperatorLiveRuntimeExecutor:
-    """Compose one operator live session into the shared runtime pipeline."""
+    """Run operator live inference through the local sensor IPC service."""
 
     __slots__ = (
-        "_capture_factory",
-        "_interface_resolver",
         "_scorer",
+        "_sensor_socket_path",
+        "_source_factory",
     )
 
     def __init__(
         self,
         scorer: RuntimeScorer,
         *,
-        interface_resolver: Callable[[str], CaptureInterface] = resolve_capture_interface,
-        capture_factory: LiveCaptureFactory = LiveEthernetCapture,
+        sensor_socket_path: str | Path = (DEFAULT_SENSOR_IPC_SOCKET_PATH),
+        source_factory: LivePacketSourceFactory = (_default_source_factory),
     ) -> None:
         self._scorer = scorer
-        self._interface_resolver = interface_resolver
-        self._capture_factory = capture_factory
+        self._sensor_socket_path = Path(sensor_socket_path)
+        self._source_factory = source_factory
 
     def __call__(
         self,
@@ -55,13 +65,14 @@ class OperatorLiveRuntimeExecutor:
         ],
     ) -> LiveRuntimeSummary:
         """Run one live sensor until the operator requests termination."""
-        interface = self._interface_resolver(configuration.interface)
-        capture = self._capture_factory(interface)
-        source = LivePacketSource(capture)
+        source = self._source_factory(
+            self._sensor_socket_path,
+            configuration.interface,
+        )
 
         pipeline = PacketPredictionPipeline(
             run_id=run_id,
-            capture_id=(f"live:{interface.name}:{run_id}"),
+            capture_id=(f"live:{configuration.interface}:{run_id}"),
             scorer=self._scorer,
             flow_config=configuration.flow_config(),
         )

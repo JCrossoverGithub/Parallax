@@ -16,6 +16,7 @@ from parallax.operator.api import create_operator_app
 from parallax.operator.history import SqliteOperatorHistory
 from parallax.operator.live_runtime import OperatorLiveRuntimeExecutor
 from parallax.operator.service import OperatorModelIdentity, OperatorReplayService
+from parallax.sensor import DEFAULT_SENSOR_IPC_SOCKET_PATH
 
 ACCEPTED_PROTOTYPE_MODEL_SHA256: Final = (
     "1c61678611043a7f70f02836ae23bbc7c1abf683b015e23ebafed4d941ecdef7"
@@ -40,6 +41,7 @@ class OperatorApplicationConfig:
     model_bundle: Path
     calibration_artifact: Path
     history_database: Path
+    sensor_socket_path: Path
 
     @classmethod
     def from_environment(cls) -> "OperatorApplicationConfig":
@@ -69,6 +71,12 @@ class OperatorApplicationConfig:
                     str(_DEFAULT_HISTORY_DATABASE),
                 )
             ),
+            sensor_socket_path=Path(
+                environ.get(
+                    "PARALLAX_SENSOR_SOCKET",
+                    str(DEFAULT_SENSOR_IPC_SOCKET_PATH),
+                )
+            ),
         )
 
 
@@ -92,7 +100,10 @@ def create_operator_application(
         scorer=runtime,
         model_identity=OperatorModelIdentity.from_runtime(runtime),
         history=SqliteOperatorHistory(resolved.history_database),
-        live_executor=OperatorLiveRuntimeExecutor(runtime),
+        live_executor=OperatorLiveRuntimeExecutor(
+            runtime,
+            sensor_socket_path=(resolved.sensor_socket_path),
+        ),
     )
 
     return create_operator_app(service)

@@ -76,6 +76,7 @@ def test_environment_configuration_uses_repository_defaults(
     monkeypatch.delenv("PARALLAX_MODEL_BUNDLE", raising=False)
     monkeypatch.delenv("PARALLAX_CALIBRATION_ARTIFACT", raising=False)
     monkeypatch.delenv("PARALLAX_HISTORY_DATABASE", raising=False)
+    monkeypatch.delenv("PARALLAX_SENSOR_SOCKET", raising=False)
 
     config = OperatorApplicationConfig.from_environment()
 
@@ -84,6 +85,7 @@ def test_environment_configuration_uses_repository_defaults(
         model_bundle=Path("data/processed/vnat-release-1/prototype-model.json"),
         calibration_artifact=Path("data/processed/vnat-release-1/prototype-ood-calibration.json"),
         history_database=Path("data/operator/parallax-operator.sqlite3"),
+        sensor_socket_path=Path("/run/parallax/sensor.sock"),
     )
 
 
@@ -100,6 +102,10 @@ def test_environment_configuration_accepts_path_overrides(
         "PARALLAX_HISTORY_DATABASE",
         "/state/operator.sqlite3",
     )
+    monkeypatch.setenv(
+        "PARALLAX_SENSOR_SOCKET",
+        "/run/custom/parallax.sock",
+    )
 
     assert OperatorApplicationConfig.from_environment() == (
         OperatorApplicationConfig(
@@ -107,6 +113,7 @@ def test_environment_configuration_accepts_path_overrides(
             model_bundle=Path("/models/model.json"),
             calibration_artifact=Path("/models/calibration.json"),
             history_database=Path("/state/operator.sqlite3"),
+            sensor_socket_path=Path("/run/custom/parallax.sock"),
         )
     )
 
@@ -122,6 +129,7 @@ def test_application_binds_explicit_paths_to_accepted_artifact_identity(
         model_bundle=tmp_path / "model.json",
         calibration_artifact=tmp_path / "calibration.json",
         history_database=tmp_path / "operator.sqlite3",
+        sensor_socket_path=(tmp_path / "sensor.sock"),
     )
 
     app = create_operator_application(config)
@@ -167,6 +175,10 @@ def test_application_can_boot_from_environment(
     monkeypatch.setenv(
         "PARALLAX_HISTORY_DATABASE",
         str(tmp_path / "operator.sqlite3"),
+    )
+    monkeypatch.setenv(
+        "PARALLAX_SENSOR_SOCKET",
+        str(tmp_path / "sensor.sock"),
     )
 
     app = create_operator_application()
