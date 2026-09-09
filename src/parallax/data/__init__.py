@@ -2,7 +2,9 @@
 
 from parallax.data.flows import (
     BidirectionalFlow,
+    BidirectionalFlowTracker,
     FlowConstructionError,
+    FlowPacketAssignment,
     group_bidirectional_flows,
 )
 from parallax.data.inspection import (
@@ -95,6 +97,7 @@ __all__ = [
     "WINDOW_SECONDS",
     "Application",
     "BidirectionalFlow",
+    "BidirectionalFlowTracker",
     "CaptureAssignment",
     "CaptureGroup",
     "CaptureMetadata",
@@ -104,6 +107,7 @@ __all__ = [
     "ConnectionKey",
     "DatasetPartition",
     "FlowConstructionError",
+    "FlowPacketAssignment",
     "ObservationWindow",
     "PacketMetadata",
     "PacketSizePolicy",

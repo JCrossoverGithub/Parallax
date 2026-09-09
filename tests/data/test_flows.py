@@ -4,7 +4,9 @@ import pytest
 
 from parallax.data import (
     BidirectionalFlow,
+    BidirectionalFlowTracker,
     FlowConstructionError,
+    FlowPacketAssignment,
     PacketMetadata,
     group_bidirectional_flows,
 )
@@ -110,3 +112,99 @@ def test_rejects_decreasing_timestamps() -> None:
 def test_rejects_nonpositive_packet_sizes(size: int) -> None:
     with pytest.raises(FlowConstructionError, match="packet 1: size must be greater than zero"):
         group_bidirectional_flows([_packet(1.0, size=size)])
+
+
+
+def test_incremental_tracker_assigns_first_observed_orientation() -> None:
+    tracker = BidirectionalFlowTracker()
+
+    first = _packet(1.0, size=52)
+    reverse = _packet(
+        2.0,
+        source="10.0.0.2",
+        source_port=22,
+        destination="10.0.0.1",
+        destination_port=41_898,
+        size=1_378,
+    )
+    third = _packet(3.0, size=60)
+
+    assignments = [
+        tracker.push(first),
+        tracker.push(reverse),
+        tracker.push(third),
+    ]
+
+    connection = ("10.0.0.1", 41_898, "10.0.0.2", 22, 6)
+
+    assert assignments == [
+        FlowPacketAssignment(
+            packet_number=1,
+            connection=connection,
+            direction=1,
+            packet=first,
+        ),
+        FlowPacketAssignment(
+            packet_number=2,
+            connection=connection,
+            direction=0,
+            packet=reverse,
+        ),
+        FlowPacketAssignment(
+            packet_number=3,
+            connection=connection,
+            direction=1,
+            packet=third,
+        ),
+    ]
+
+    assert tracker.freeze() == (
+        BidirectionalFlow(
+            connection=connection,
+            timestamps=(1.0, 2.0, 3.0),
+            sizes=(52, 1_378, 60),
+            directions=(1, 0, 1),
+        ),
+    )
+
+
+def test_incremental_tracker_matches_batch_flow_construction() -> None:
+    packets = [
+        _packet(1.0, protocol=17, size=32),
+        _packet(1.0, protocol=6, size=52),
+        _packet(
+            2.0,
+            protocol=17,
+            source="10.0.0.2",
+            source_port=22,
+            destination="10.0.0.1",
+            destination_port=41_898,
+            size=40,
+        ),
+        _packet(3.0, protocol=6, size=60),
+    ]
+
+    tracker = BidirectionalFlowTracker()
+    for packet in packets:
+        tracker.push(packet)
+
+    assert tracker.freeze() == group_bidirectional_flows(packets)
+
+
+def test_empty_incremental_tracker_freezes_to_no_flows() -> None:
+    assert BidirectionalFlowTracker().freeze() == ()
+
+
+def test_invalid_incremental_push_does_not_advance_packet_number() -> None:
+    tracker = BidirectionalFlowTracker()
+
+    first = tracker.push(_packet(1.0))
+
+    with pytest.raises(FlowConstructionError, match="packet 2: timestamp precedes"):
+        tracker.push(_packet(0.5))
+
+    second = tracker.push(_packet(2.0))
+
+    assert first.packet_number == 1
+    assert second.packet_number == 2
+    assert tracker.freeze()[0].timestamps == (1.0, 2.0)
