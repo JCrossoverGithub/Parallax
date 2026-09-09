@@ -1,0 +1,467 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import {
+  Observable,
+  of,
+  throwError,
+} from 'rxjs';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+
+import { App } from './app';
+import {
+  OperatorApi,
+  ReplayStreamHandlers,
+} from './operator-api';
+import {
+  HealthResponse,
+  ReplaySnapshot,
+  RuntimePredictionEvent,
+} from './operator.types';
+
+const HEALTH: HealthResponse = {
+  status: 'ok',
+  active_model: {
+    model_bundle_sha256: 'a'.repeat(64),
+    calibration_artifact_sha256: 'b'.repeat(64),
+    feature_artifact_sha256: 'c'.repeat(64),
+    split_manifest_sha256: 'd'.repeat(64),
+  },
+  sessions: {
+    total: 0,
+    active: 0,
+  },
+};
+
+const CREATED: ReplaySnapshot = {
+  run_id: 'run-001',
+  source_id: 'nonvpn_ssh_capture4.pcap',
+  source_sha256: 'e'.repeat(64),
+  state: 'created',
+  time_scale: 1,
+  event_count: 0,
+  retained_event_count: 0,
+  failure: null,
+};
+
+const RUNNING: ReplaySnapshot = {
+  ...CREATED,
+  state: 'running',
+};
+
+const PAUSED: ReplaySnapshot = {
+  ...CREATED,
+  state: 'paused',
+};
+
+const COMPLETED: ReplaySnapshot = {
+  ...CREATED,
+  state: 'completed',
+  event_count: 1,
+  retained_event_count: 1,
+};
+
+const PREDICTION: RuntimePredictionEvent = {
+  schema_version: 'parallax-runtime-prediction-1',
+  run_id: 'run-001',
+  window: {
+    window_id: 'window-001',
+    capture_id: 'nonvpn_ssh_capture4.pcap',
+    flow_id: 'flow-001',
+    window_index: 0,
+    start_offset_seconds: 0,
+    end_offset_seconds: 40,
+    packet_count: 21,
+  },
+  classification: {
+    category_order: [
+      'Streaming',
+      'VoIP',
+      'Chat',
+      'C2',
+      'File Transfer',
+    ],
+    class_probabilities: [0.7, 0.1, 0.1, 0.05, 0.05],
+    predicted_class_index: 0,
+    predicted_category: 'Streaming',
+    raw_confidence: 0.7,
+  },
+  uncertainty: {
+    relative_mahalanobis_distance: 1.5,
+    ood_score: 0.2,
+  },
+  provenance: HEALTH.active_model,
+};
+
+class FakeOperatorApi {
+  readonly health = vi.fn<() => Observable<HealthResponse>>(
+    () => of(HEALTH),
+  );
+
+  readonly startReplay = vi.fn(
+    () => of(CREATED),
+  );
+
+  readonly getReplay = vi.fn(
+    () => of(RUNNING),
+  );
+
+  readonly pauseReplay = vi.fn(
+    () =>
+      of({
+        run_id: 'run-001',
+        action: 'pause',
+        accepted: true,
+      }),
+  );
+
+  readonly resumeReplay = vi.fn(
+    () =>
+      of({
+        run_id: 'run-001',
+        action: 'resume',
+        accepted: true,
+      }),
+  );
+
+  readonly cancelReplay = vi.fn(
+    () =>
+      of({
+        run_id: 'run-001',
+        action: 'cancel',
+        accepted: true,
+      }),
+  );
+
+  handlers: ReplayStreamHandlers | null = null;
+
+  readonly source = {
+    close: vi.fn(),
+  };
+
+  readonly openReplayStream = vi.fn(
+    (
+      _runId: string,
+      handlers: ReplayStreamHandlers,
+    ): EventSource => {
+      this.handlers = handlers;
+      return this.source as unknown as EventSource;
+    },
+  );
+}
+
+describe('App', () => {
+  let fixture: ComponentFixture<App>;
+  let component: App;
+  let api: FakeOperatorApi;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+
+    api = new FakeOperatorApi();
+
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        {
+          provide: OperatorApi,
+          useValue: api,
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(App);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    vi.useRealTimers();
+  });
+
+  it('creates the dashboard and loads health', () => {
+    expect(component).toBeTruthy();
+    expect(api.health).toHaveBeenCalledOnce();
+    expect(component.health()).toEqual(HEALTH);
+
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    expect(compiled.querySelector('h1')?.textContent).toContain(
+      'Encrypted Traffic Operator',
+    );
+
+    expect(compiled.textContent).toContain(
+      'Service online',
+    );
+
+    expect(compiled.textContent).toContain(
+      'Start a replay to receive runtime predictions.',
+    );
+  });
+
+  it('starts replay at configured speed and connects SSE', () => {
+    component.capture = ' nonvpn_ssh_capture4.pcap ';
+    component.timeScale = 2;
+
+    component.startReplay();
+
+    expect(api.startReplay).toHaveBeenCalledWith({
+      capture: 'nonvpn_ssh_capture4.pcap',
+      time_scale: 2,
+    });
+
+    expect(component.replay()).toEqual(CREATED);
+    expect(api.openReplayStream).toHaveBeenCalledWith(
+      'run-001',
+      expect.any(Object),
+    );
+  });
+
+  it('starts maximum-speed replay with a null time scale', () => {
+    component.maximumSpeed = true;
+
+    component.startReplay();
+
+    expect(api.startReplay).toHaveBeenCalledWith({
+      capture: 'nonvpn_ssh_capture4.pcap',
+      time_scale: null,
+    });
+  });
+
+  it('ignores blank capture and duplicate busy starts', () => {
+    component.capture = ' ';
+    component.startReplay();
+
+    expect(api.startReplay).not.toHaveBeenCalled();
+
+    component.capture = 'capture.pcap';
+    component.busy.set(true);
+    component.startReplay();
+
+    expect(api.startReplay).not.toHaveBeenCalled();
+  });
+
+  it('renders predictions received from SSE', () => {
+    component.startReplay();
+
+    expect(api.handlers).not.toBeNull();
+
+    api.handlers?.prediction(PREDICTION);
+    fixture.detectChanges();
+
+    expect(component.predictions()).toEqual([
+      PREDICTION,
+    ]);
+    expect(component.latestPrediction()).toEqual(
+      PREDICTION,
+    );
+    expect(component.streamConnected()).toBe(true);
+
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    expect(compiled.textContent).toContain('Streaming');
+    expect(compiled.textContent).toContain('70.0%');
+    expect(compiled.textContent).toContain('0.200');
+    expect(compiled.textContent).toContain('flow-001');
+  });
+
+  it('handles terminal SSE state', () => {
+    api.getReplay.mockReturnValue(of(COMPLETED));
+
+    component.startReplay();
+
+    api.handlers?.terminal({
+      run_id: 'run-001',
+      state: 'completed',
+    });
+
+    expect(component.replay()).toEqual(COMPLETED);
+    expect(component.streamConnected()).toBe(false);
+    expect(api.health).toHaveBeenCalledTimes(3);
+  });
+
+  it('surfaces structured SSE errors', () => {
+    component.startReplay();
+
+    api.handlers?.streamError('cursor expired');
+
+    expect(component.error()).toBe('cursor expired');
+    expect(component.streamConnected()).toBe(false);
+  });
+
+  it('handles an SSE connection failure while active', () => {
+    component.startReplay();
+    component.streamConnected.set(true);
+
+    api.handlers?.connectionError();
+
+    expect(component.streamConnected()).toBe(false);
+  });
+
+  it('does not change stream state for connection failure after completion', () => {
+    component.startReplay();
+    component.replay.set(COMPLETED);
+    component.streamConnected.set(true);
+
+    api.handlers?.connectionError();
+
+    expect(component.streamConnected()).toBe(true);
+  });
+
+  it('polls replay state while a replay is active', () => {
+    component.startReplay();
+
+    vi.advanceTimersByTime(250);
+
+    expect(api.getReplay).toHaveBeenCalledWith(
+      'run-001',
+    );
+  });
+
+  it('stops polling after a terminal snapshot', () => {
+    api.getReplay.mockReturnValue(of(COMPLETED));
+
+    component.startReplay();
+
+    vi.advanceTimersByTime(250);
+    const calls = api.getReplay.mock.calls.length;
+
+    vi.advanceTimersByTime(1000);
+
+    expect(api.getReplay.mock.calls.length).toBe(calls);
+  });
+
+  it('pauses a running replay', () => {
+    component.replay.set(RUNNING);
+    api.getReplay.mockReturnValue(of(PAUSED));
+
+    component.pause();
+
+    expect(api.pauseReplay).toHaveBeenCalledWith(
+      'run-001',
+    );
+    expect(component.replay()).toEqual(PAUSED);
+  });
+
+  it('resumes a paused replay', () => {
+    component.replay.set(PAUSED);
+    api.getReplay.mockReturnValue(of(RUNNING));
+
+    component.resume();
+
+    expect(api.resumeReplay).toHaveBeenCalledWith(
+      'run-001',
+    );
+    expect(component.replay()).toEqual(RUNNING);
+  });
+
+  it('cancels an active replay', () => {
+    component.replay.set(RUNNING);
+
+    component.cancel();
+
+    expect(api.cancelReplay).toHaveBeenCalledWith(
+      'run-001',
+    );
+  });
+
+  it('ignores control actions without a replay', () => {
+    component.replay.set(null);
+
+    component.pause();
+    component.resume();
+    component.cancel();
+
+    expect(api.pauseReplay).not.toHaveBeenCalled();
+    expect(api.resumeReplay).not.toHaveBeenCalled();
+    expect(api.cancelReplay).not.toHaveBeenCalled();
+  });
+
+  it('surfaces start failures', () => {
+    api.startReplay.mockReturnValue(
+      throwError(() => ({
+        error: {
+          detail: 'capture does not exist',
+        },
+      })),
+    );
+
+    component.startReplay();
+
+    expect(component.error()).toBe(
+      'capture does not exist',
+    );
+    expect(component.busy()).toBe(false);
+  });
+
+  it('uses fallback start error text', () => {
+    api.startReplay.mockReturnValue(
+      throwError(() => ({})),
+    );
+
+    component.startReplay();
+
+    expect(component.error()).toBe(
+      'Unable to start replay.',
+    );
+  });
+
+  it.each([
+    ['pause', 'pauseReplay', 'Unable to pause replay.'],
+    ['resume', 'resumeReplay', 'Unable to resume replay.'],
+    ['cancel', 'cancelReplay', 'Unable to cancel replay.'],
+  ] as const)(
+    'surfaces %s control failures',
+    (action, method, fallback) => {
+      component.replay.set(RUNNING);
+
+      api[method].mockReturnValue(
+        throwError(() => ({})),
+      );
+
+      component[action]();
+
+      expect(component.error()).toBe(fallback);
+    },
+  );
+
+  it('surfaces the health connection failure', () => {
+    api.health.mockReturnValue(
+      throwError(() => new Error('offline')),
+    );
+
+    component.loadHealth();
+
+    expect(component.error()).toBe(
+      'Unable to reach the Parallax operator service.',
+    );
+  });
+
+  it('provides stable prediction helpers', () => {
+    expect(
+      component.trackPrediction(0, PREDICTION),
+    ).toBe('window-001');
+
+    expect(
+      component.probability(PREDICTION, 0),
+    ).toBe(0.7);
+
+    expect(
+      component.probability(PREDICTION, 999),
+    ).toBe(0);
+  });
+
+  it('closes the active EventSource on destroy', () => {
+    component.startReplay();
+
+    fixture.destroy();
+
+    expect(api.source.close).toHaveBeenCalled();
+  });
+});
