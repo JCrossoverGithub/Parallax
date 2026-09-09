@@ -24,6 +24,7 @@ from parallax.features.flow_statistics import (
 )
 from parallax.features.runtime import (
     VnatWindowFeature,
+    calculate_vnat_window_feature,
     extract_vnat_pcap_features,
 )
 from parallax.features.schema import (
@@ -93,6 +94,7 @@ __all__ = [
     "calculate_aggregate_feature_vector",
     "calculate_directional_wavelet_features",
     "calculate_feature_vector",
+    "calculate_vnat_window_feature",
     "calculate_interarrival_feature_vector",
     "calculate_wavelet_feature_vector",
     "export_capture_split_manifest",
