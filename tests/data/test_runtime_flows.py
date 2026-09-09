@@ -323,3 +323,41 @@ def test_stale_eviction_frees_capacity_before_new_flow() -> None:
         capacity_rejections=0,
         peak_tracked_flow_count=1,
     )
+
+
+def test_sustained_flow_churn_remains_bounded() -> None:
+    maximum_flows = 128
+    generations = 32
+
+    tracker = RuntimeFlowTracker(
+        config=RuntimeFlowTrackerConfig(
+            stale_after_seconds=10.0,
+            max_tracked_flows=maximum_flows,
+        )
+    )
+
+    for generation in range(generations):
+        generation_start = generation * 20.0
+
+        for index in range(maximum_flows):
+            packet_number = generation * maximum_flows + index
+
+            tracker.push(
+                _packet(
+                    generation_start + index * 0.001,
+                    source_port=10_000 + packet_number,
+                )
+            )
+
+            assert tracker.tracked_flow_count <= maximum_flows
+
+    total_flows = maximum_flows * generations
+
+    assert tracker.stats == RuntimeFlowTrackerStats(
+        packet_count=total_flows,
+        tracked_flow_count=maximum_flows,
+        flows_created=total_flows,
+        flows_evicted_stale=(maximum_flows * (generations - 1)),
+        capacity_rejections=0,
+        peak_tracked_flow_count=maximum_flows,
+    )

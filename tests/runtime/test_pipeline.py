@@ -221,6 +221,10 @@ def test_pipeline_stats_track_packets_flows_events_and_finish_state() -> None:
     assert pipeline.stats == RuntimePipelineStats(
         packets_processed=0,
         tracked_flow_count=0,
+        flows_created=0,
+        flows_evicted_stale=0,
+        capacity_rejections=0,
+        peak_tracked_flow_count=0,
         prediction_events_emitted=0,
         finished=False,
     )
@@ -251,6 +255,10 @@ def test_pipeline_stats_track_packets_flows_events_and_finish_state() -> None:
     assert pipeline.stats == RuntimePipelineStats(
         packets_processed=2,
         tracked_flow_count=1,
+        flows_created=1,
+        flows_evicted_stale=0,
+        capacity_rejections=0,
+        peak_tracked_flow_count=1,
         prediction_events_emitted=0,
         finished=False,
     )
@@ -261,6 +269,10 @@ def test_pipeline_stats_track_packets_flows_events_and_finish_state() -> None:
     assert pipeline.stats == RuntimePipelineStats(
         packets_processed=2,
         tracked_flow_count=1,
+        flows_created=1,
+        flows_evicted_stale=0,
+        capacity_rejections=0,
+        peak_tracked_flow_count=1,
         prediction_events_emitted=1,
         finished=True,
     )
@@ -304,6 +316,17 @@ def test_pipeline_accepts_runtime_flow_resource_config() -> None:
                 size=100,
             )
         )
+
+    assert pipeline.stats == RuntimePipelineStats(
+        packets_processed=1,
+        tracked_flow_count=1,
+        flows_created=1,
+        flows_evicted_stale=0,
+        capacity_rejections=1,
+        peak_tracked_flow_count=1,
+        prediction_events_emitted=0,
+        finished=False,
+    )
 
 
 class StatsScorerForConfig:

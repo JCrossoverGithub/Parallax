@@ -29,6 +29,10 @@ class RuntimePipelineStats:
 
     packets_processed: int
     tracked_flow_count: int
+    flows_created: int
+    flows_evicted_stale: int
+    capacity_rejections: int
+    peak_tracked_flow_count: int
     prediction_events_emitted: int
     finished: bool
 
@@ -82,9 +86,15 @@ class PacketPredictionPipeline:
     @property
     def stats(self) -> RuntimePipelineStats:
         """Return current operational counters without mutating runtime state."""
+        flow_stats = self._flow_tracker.stats
+
         return RuntimePipelineStats(
-            packets_processed=self._flow_tracker.packet_count,
-            tracked_flow_count=self._flow_tracker.tracked_flow_count,
+            packets_processed=flow_stats.packet_count,
+            tracked_flow_count=flow_stats.tracked_flow_count,
+            flows_created=flow_stats.flows_created,
+            flows_evicted_stale=flow_stats.flows_evicted_stale,
+            capacity_rejections=flow_stats.capacity_rejections,
+            peak_tracked_flow_count=flow_stats.peak_tracked_flow_count,
             prediction_events_emitted=self._events_emitted,
             finished=self._finished,
         )
