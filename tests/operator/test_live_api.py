@@ -18,6 +18,7 @@ from parallax.operator.service import (
     OperatorEventRecord,
     OperatorLiveConflictError,
     OperatorLiveEventBatch,
+    OperatorLiveEventSnapshot,
     OperatorLiveNotFoundError,
     OperatorReplayService,
     OperatorServiceError,
@@ -54,6 +55,7 @@ class FakeLiveService:
     def __init__(self) -> None:
         self.live_batch_calls: list[tuple[str, int]] = []
         self.stop_calls: list[str] = []
+        self.active_session: OperatorLiveSession | None = None
 
     def health(self) -> dict[str, object]:
         return {
@@ -88,6 +90,11 @@ class FakeLiveService:
             state=OperatorLiveState.STARTING,
         )
 
+    def get_active_live(
+        self,
+    ) -> OperatorLiveSession | None:
+        return self.active_session
+
     def get_live(
         self,
         run_id: str,
@@ -110,14 +117,25 @@ class FakeLiveService:
         self,
         run_id: str,
     ) -> tuple[dict[str, object], ...]:
+        return self.get_live_event_snapshot(run_id).events
+
+    def get_live_event_snapshot(
+        self,
+        run_id: str,
+    ) -> OperatorLiveEventSnapshot:
         if run_id == "missing":
             raise OperatorLiveNotFoundError("live session does not exist")
 
-        return (
-            {
-                "schema_version": ("parallax-runtime-prediction-1"),
-                "run_id": run_id,
-            },
+        return OperatorLiveEventSnapshot(
+            run_id=run_id,
+            events=(
+                {
+                    "schema_version": ("parallax-runtime-prediction-1"),
+                    "run_id": run_id,
+                },
+            ),
+            last_sequence=1,
+            state=OperatorLiveState.COMPLETED,
         )
 
     def stop_live(
@@ -266,6 +284,35 @@ def test_start_live_maps_active_session_conflict() -> None:
     assert response.json() == {"detail": "a live session is already active"}
 
 
+def test_active_live_session_returns_null_when_idle() -> None:
+    response = _client().get("/api/v1/live/active")
+
+    assert response.status_code == 200
+    assert response.json() is None
+
+
+def test_active_live_session_is_serialized() -> None:
+    service = FakeLiveService()
+    service.active_session = _session(
+        "live-active",
+        state=OperatorLiveState.RUNNING,
+    )
+
+    response = _client(service).get("/api/v1/live/active")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "run_id": "live-active",
+        "state": "running",
+        "configuration": {
+            "interface": "eth0",
+            "stale_after_seconds": 120.0,
+            "max_tracked_flows": 4_096,
+        },
+        "failure": None,
+    }
+
+
 def test_reads_live_session() -> None:
     response = _client().get("/api/v1/live/live-001")
 
@@ -305,6 +352,8 @@ def test_reads_live_prediction_events() -> None:
                 "run_id": "live-001",
             }
         ],
+        "last_sequence": 1,
+        "state": "completed",
     }
 
 

@@ -296,6 +296,15 @@ def create_operator_app(service: OperatorReplayService) -> FastAPI:
 
         return _live_session_payload(session)
 
+    @app.get("/api/v1/live/active")
+    def get_active_live() -> dict[str, object] | None:
+        session = service.get_active_live()
+
+        if session is None:
+            return None
+
+        return _live_session_payload(session)
+
     @app.get("/api/v1/live/{run_id}")
     def get_live(run_id: str) -> dict[str, object]:
         try:
@@ -313,7 +322,9 @@ def create_operator_app(service: OperatorReplayService) -> FastAPI:
         run_id: str,
     ) -> dict[str, object]:
         try:
-            events = service.get_live_events(run_id)
+            snapshot = service.get_live_event_snapshot(
+                run_id,
+            )
         except OperatorLiveNotFoundError as error:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -321,8 +332,10 @@ def create_operator_app(service: OperatorReplayService) -> FastAPI:
             ) from error
 
         return {
-            "run_id": run_id,
-            "events": list(events),
+            "run_id": snapshot.run_id,
+            "events": list(snapshot.events),
+            "last_sequence": snapshot.last_sequence,
+            "state": snapshot.state.value,
         }
 
     @app.post(

@@ -179,6 +179,16 @@ class OperatorLiveEventBatch:
     state: OperatorLiveState
 
 
+@dataclass(frozen=True, slots=True)
+class OperatorLiveEventSnapshot:
+    """Current retained live events and their global sequence cursor."""
+
+    run_id: str
+    events: tuple[dict[str, object], ...]
+    last_sequence: int
+    state: OperatorLiveState
+
+
 @dataclass(slots=True)
 class _ReplayRecord:
     session: ReplaySession
@@ -310,6 +320,17 @@ class OperatorReplayService:
 
         return session
 
+    def get_active_live(
+        self,
+    ) -> OperatorLiveSession | None:
+        """Return the currently active live session, if one exists."""
+        with self._lock:
+            for record in self._live_records.values():
+                if not record.session.state.is_terminal:
+                    return record.session
+
+        return None
+
     def get_live(
         self,
         run_id: str,
@@ -323,9 +344,22 @@ class OperatorReplayService:
         run_id: str,
     ) -> tuple[dict[str, object], ...]:
         """Return retained prediction events for one live session."""
+        return self.get_live_event_snapshot(run_id).events
+
+    def get_live_event_snapshot(
+        self,
+        run_id: str,
+    ) -> OperatorLiveEventSnapshot:
+        """Return retained events with their current global sequence cursor."""
         with self._lock:
             record = self._require_live_record(run_id)
-            return tuple(event.as_dict() for event in record.events)
+
+            return OperatorLiveEventSnapshot(
+                run_id=run_id,
+                events=tuple(event.as_dict() for event in record.events),
+                last_sequence=record.total_events,
+                state=record.session.state,
+            )
 
     def get_live_event_batch(
         self,

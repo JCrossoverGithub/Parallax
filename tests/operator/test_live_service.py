@@ -576,3 +576,120 @@ def test_live_event_batch_sequences_and_validates_cursor(
             created.run_id,
             after_sequence=-1,
         )
+
+
+def test_active_live_session_is_discoverable(
+    tmp_path: Path,
+) -> None:
+    entered = Event()
+
+    def execute(
+        run_id: str,
+        configuration: OperatorLiveConfiguration,
+        stop_event: Event,
+        handle_event: object,
+    ) -> None:
+        entered.set()
+        stop_event.wait(timeout=2.0)
+
+    service = _service(
+        tmp_path,
+        executor=execute,
+    )
+
+    assert service.get_active_live() is None
+
+    created = service.start_live("eth0")
+
+    assert entered.wait(timeout=2.0)
+
+    active = service.get_active_live()
+
+    assert active is not None
+    assert active.run_id == created.run_id
+    assert not active.state.is_terminal
+
+    service.stop_live(created.run_id)
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        OperatorLiveState.COMPLETED,
+    )
+
+    assert service.get_active_live() is None
+
+
+def test_live_event_snapshot_preserves_global_cursor(
+    tmp_path: Path,
+) -> None:
+    def execute(
+        run_id: str,
+        configuration: OperatorLiveConfiguration,
+        stop_event: Event,
+        handle_event: object,
+    ) -> None:
+        callback = cast(
+            Callable[[RuntimePredictionEvent], None],
+            handle_event,
+        )
+
+        for index in range(3):
+            prediction = PrototypeRuntimePrediction(
+                window_id=f"window-{index}",
+                capture_id=f"live:eth0:{run_id}",
+                flow_id="flow-001",
+                window_index=index,
+                start_offset_seconds=float(index),
+                end_offset_seconds=float(index + 1),
+                packet_count=21,
+                category_order=CATEGORY_LABELS,
+                class_probabilities=(
+                    0.7,
+                    0.1,
+                    0.1,
+                    0.05,
+                    0.05,
+                ),
+                predicted_class_index=0,
+                predicted_category=CATEGORY_LABELS[0],
+                raw_confidence=0.7,
+                relative_mahalanobis_distance=1.0,
+                ood_score=0.1,
+                model_bundle_sha256="a" * 64,
+                calibration_artifact_sha256="b" * 64,
+                feature_artifact_sha256="c" * 64,
+                split_manifest_sha256="d" * 64,
+            )
+
+            callback(
+                RuntimePredictionEvent(
+                    run_id=run_id,
+                    prediction=prediction,
+                )
+            )
+
+    service = _service(
+        tmp_path,
+        executor=execute,
+        event_history_limit=2,
+    )
+
+    created = service.start_live("eth0")
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        OperatorLiveState.COMPLETED,
+    )
+
+    snapshot = service.get_live_event_snapshot(
+        created.run_id,
+    )
+
+    assert snapshot.run_id == created.run_id
+    assert len(snapshot.events) == 2
+    assert snapshot.last_sequence == 3
+    assert snapshot.state is OperatorLiveState.COMPLETED
+
+    assert [event["window"]["window_index"] for event in snapshot.events] == [1, 2]
