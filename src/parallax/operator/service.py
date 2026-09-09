@@ -1,6 +1,7 @@
 """In-memory operator service for controlled Parallax replay sessions."""
 
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -11,6 +12,7 @@ from parallax.modeling.runtime import PrototypeRuntime
 from parallax.replay import (
     ReplayConfiguration,
     ReplayControl,
+    ReplayControlError,
     ReplaySession,
     ReplaySessionId,
     ReplayState,
@@ -23,6 +25,14 @@ from parallax.runtime import (
     run_packet_prediction_replay,
 )
 
+_TERMINAL_STATES = frozenset(
+    {
+        ReplayState.COMPLETED,
+        ReplayState.FAILED,
+        ReplayState.CANCELLED,
+    }
+)
+
 
 class OperatorServiceError(ValueError):
     """Raised when an operator request cannot be satisfied."""
@@ -30,6 +40,14 @@ class OperatorServiceError(ValueError):
 
 class OperatorReplayNotFoundError(OperatorServiceError):
     """Raised when an operator replay ID does not exist."""
+
+
+class OperatorReplayConflictError(OperatorServiceError):
+    """Raised when a replay cannot accept an operator control request."""
+
+
+class OperatorEventCursorError(OperatorServiceError):
+    """Raised when an event-stream cursor cannot be satisfied."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,6 +113,24 @@ class OperatorReplaySnapshot:
             "retained_event_count": self.retained_event_count,
             "failure": failure,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorEventRecord:
+    """One sequenced operator-visible prediction event."""
+
+    sequence: int
+    payload: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class OperatorEventBatch:
+    """Prediction events available after one sequence cursor."""
+
+    run_id: str
+    events: tuple[OperatorEventRecord, ...]
+    last_sequence: int
+    state: ReplayState
 
 
 @dataclass(slots=True)
@@ -202,6 +238,74 @@ class OperatorReplayService:
             record = self._require_record(run_id)
             return tuple(event.as_dict() for event in record.events)
 
+    def get_event_batch(
+        self,
+        run_id: str,
+        *,
+        after_sequence: int = 0,
+    ) -> OperatorEventBatch:
+        """Return retained events following an inclusive stream cursor."""
+        if after_sequence < 0:
+            raise OperatorEventCursorError("event sequence cursor must not be negative")
+
+        with self._lock:
+            record = self._require_record(run_id)
+
+            if after_sequence > record.total_events:
+                raise OperatorEventCursorError("event sequence cursor is ahead of the replay")
+
+            first_sequence = record.total_events - len(record.events) + 1
+
+            if record.events and after_sequence < first_sequence - 1:
+                raise OperatorEventCursorError("requested events are no longer retained")
+
+            events = tuple(
+                OperatorEventRecord(
+                    sequence=sequence,
+                    payload=event.as_dict(),
+                )
+                for sequence, event in enumerate(
+                    record.events,
+                    start=first_sequence,
+                )
+                if sequence > after_sequence
+            )
+
+            return OperatorEventBatch(
+                run_id=run_id,
+                events=events,
+                last_sequence=record.total_events,
+                state=record.session.state,
+            )
+
+    def pause_replay(self, run_id: str) -> None:
+        """Request that a running replay pause."""
+        self._request_control(run_id, ReplayControl.pause)
+
+    def resume_replay(self, run_id: str) -> None:
+        """Request that a paused replay resume."""
+        self._request_control(run_id, ReplayControl.resume)
+
+    def cancel_replay(self, run_id: str) -> None:
+        """Request cancellation of a nonterminal replay."""
+        self._request_control(run_id, ReplayControl.cancel)
+
+    def _request_control(
+        self,
+        run_id: str,
+        request: Callable[[ReplayControl], None],
+    ) -> None:
+        with self._lock:
+            record = self._require_record(run_id)
+
+            if record.session.state in _TERMINAL_STATES:
+                raise OperatorReplayConflictError(f"replay {run_id!r} is already terminal")
+
+            try:
+                request(record.control)
+            except ReplayControlError as error:
+                raise OperatorReplayConflictError(str(error)) from error
+
     def _execute_replay(
         self,
         run_id: str,
@@ -220,11 +324,7 @@ class OperatorReplayService:
         )
 
         def handle_session(current: ReplaySession) -> None:
-            if current.state not in {
-                ReplayState.COMPLETED,
-                ReplayState.FAILED,
-                ReplayState.CANCELLED,
-            }:
+            if current.state not in _TERMINAL_STATES:
                 self._update_session(run_id, current)
 
         result = run_packet_prediction_replay(
@@ -239,9 +339,6 @@ class OperatorReplayService:
             handle_session=handle_session,
         )
 
-        # Publish a terminal session only after replay integration has completed.
-        # For COMPLETED, this guarantees the final eligible runtime window has
-        # already been flushed into operator-visible event history.
         self._update_session(run_id, result)
 
     def _append_event(

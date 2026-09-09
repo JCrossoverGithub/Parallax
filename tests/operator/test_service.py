@@ -296,3 +296,219 @@ def test_failed_replay_exposes_structured_failure(tmp_path: Path) -> None:
     assert isinstance(failure, dict)
     assert failure["code"] == "replay_execution_error"
     assert "unsupported IP version" in failure["message"]
+
+
+def _wait_for_state(
+    service: OperatorReplayService,
+    run_id: str,
+    state: ReplayState,
+) -> None:
+    deadline = monotonic() + 2.0
+
+    while monotonic() < deadline:
+        if service.get_replay(run_id).state is state:
+            return
+
+        sleep(0.01)
+
+    raise AssertionError(f"replay did not reach {state.value!r}")
+
+
+def test_pause_resume_and_cancel_control_real_replay(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "nonvpn_ssh_capture95.pcap"
+    _write_pcap(
+        source,
+        [
+            (100.0, _ipv4_packet()),
+            (110.0, _ipv4_packet()),
+        ],
+    )
+
+    service = _service(tmp_path)
+    created = service.start_replay(
+        source.name,
+        time_scale=1.0,
+    )
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        ReplayState.RUNNING,
+    )
+
+    service.pause_replay(created.run_id)
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        ReplayState.PAUSED,
+    )
+
+    service.resume_replay(created.run_id)
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        ReplayState.RUNNING,
+    )
+
+    service.cancel_replay(created.run_id)
+    _wait_for_terminal(service, created.run_id)
+
+    assert service.get_replay(created.run_id).state is ReplayState.CANCELLED
+
+
+def test_terminal_replay_rejects_control_request(
+    tmp_path: Path,
+) -> None:
+    from parallax.operator import OperatorReplayConflictError
+
+    source = tmp_path / "nonvpn_ssh_capture96.pcap"
+    _write_pcap(source, [])
+
+    service = _service(tmp_path)
+    created = service.start_replay(
+        source.name,
+        time_scale=None,
+    )
+    _wait_for_terminal(service, created.run_id)
+
+    with pytest.raises(
+        OperatorReplayConflictError,
+        match="already terminal",
+    ):
+        service.pause_replay(created.run_id)
+
+
+def test_event_batch_sequences_retained_history(
+    tmp_path: Path,
+) -> None:
+    from parallax.operator import OperatorEventCursorError
+
+    source = tmp_path / "nonvpn_ssh_capture97.pcap"
+    records: list[tuple[float, bytes]] = []
+
+    for window_index in range(3):
+        start = 100.0 + (window_index * 41.0)
+
+        records.extend((start + index * 0.1, _ipv4_packet()) for index in range(21))
+
+    _write_pcap(source, records)
+
+    service = _service(
+        tmp_path,
+        event_history_limit=2,
+    )
+
+    created = service.start_replay(
+        source.name,
+        time_scale=None,
+    )
+    _wait_for_terminal(service, created.run_id)
+
+    batch = service.get_event_batch(
+        created.run_id,
+        after_sequence=1,
+    )
+
+    assert [event.sequence for event in batch.events] == [2, 3]
+    assert batch.last_sequence == 3
+    assert batch.state is ReplayState.COMPLETED
+
+    with pytest.raises(
+        OperatorEventCursorError,
+        match="no longer retained",
+    ):
+        service.get_event_batch(
+            created.run_id,
+            after_sequence=0,
+        )
+
+    with pytest.raises(
+        OperatorEventCursorError,
+        match="ahead of the replay",
+    ):
+        service.get_event_batch(
+            created.run_id,
+            after_sequence=4,
+        )
+
+    with pytest.raises(
+        OperatorEventCursorError,
+        match="must not be negative",
+    ):
+        service.get_event_batch(
+            created.run_id,
+            after_sequence=-1,
+        )
+
+
+def test_empty_replay_has_empty_event_batch(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "nonvpn_ssh_capture98.pcap"
+    _write_pcap(source, [])
+
+    service = _service(tmp_path)
+    created = service.start_replay(
+        source.name,
+        time_scale=None,
+    )
+    _wait_for_terminal(service, created.run_id)
+
+    batch = service.get_event_batch(created.run_id)
+
+    assert batch.events == ()
+    assert batch.last_sequence == 0
+    assert batch.state is ReplayState.COMPLETED
+
+
+def test_control_error_becomes_operator_conflict(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from parallax.operator import OperatorReplayConflictError
+    from parallax.replay import ReplayControl, ReplayControlError
+
+    source = tmp_path / "nonvpn_ssh_capture99.pcap"
+    _write_pcap(
+        source,
+        [
+            (100.0, _ipv4_packet()),
+            (110.0, _ipv4_packet()),
+        ],
+    )
+
+    service = _service(tmp_path)
+    created = service.start_replay(
+        source.name,
+        time_scale=1.0,
+    )
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        ReplayState.RUNNING,
+    )
+
+    def fail_pause(_: ReplayControl) -> None:
+        raise ReplayControlError("synthetic control conflict")
+
+    monkeypatch.setattr(
+        ReplayControl,
+        "pause",
+        fail_pause,
+    )
+
+    with pytest.raises(
+        OperatorReplayConflictError,
+        match="synthetic control conflict",
+    ):
+        service.pause_replay(created.run_id)
+
+    service.cancel_replay(created.run_id)
+    _wait_for_terminal(service, created.run_id)
+
+    assert service.get_replay(created.run_id).state is ReplayState.CANCELLED
