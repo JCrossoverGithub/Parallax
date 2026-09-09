@@ -7,8 +7,9 @@ trained on the capture-grouped training partition, selected on validation, froze
 checksum-bound bundle, fitted with relative-Mahalanobis OOD density estimates on calibration,
 and evaluated once on test after the procedure was committed.
 
-This is a research artifact and future runtime candidate. It is not approved as a production
-classifier, intrusion-detection system, malware detector, or general Internet-traffic model.
+This is a research artifact and the frozen model used by the deterministic Parallax replay
+runtime. It is not approved as a production classifier, intrusion-detection system, malware
+detector, or general Internet-traffic model.
 Complete evidence is recorded in
 [VNAT Prototype and Uncertainty Evaluation](uncertainty-modeling.md).
 
@@ -127,10 +128,19 @@ bindings, schema versions, ordered feature names, feature dimension, finite valu
 order before scoring. It must report confidence and OOD score independently and preserve the
 active artifact identities with every prediction.
 
-Selected-capture raw-PCAP feature parity is now satisfied: exact offline/runtime 129-feature
-agreement was demonstrated on eligible SSH and VoIP VNAT windows. Exact raw flow reconstruction
-across the acceptance captures also covered TCP, UDP, and ICMP metadata; the VoIP capture's 404
-ICMP packets did not themselves produce eligible feature windows. Operational activation still
-requires checksum-verified model and calibration artifacts at runtime, bounded inference
-measurements, deterministic replay behavior, failure-mode testing, and clear UI communication of
-the model's limitations.
+Selected-capture raw-PCAP feature parity is satisfied: exact offline/runtime 129-feature
+agreement was demonstrated on five eligible SSH windows and 45 eligible VoIP windows, with maximum
+absolute feature difference `0.0`. Exact raw flow reconstruction across the acceptance captures
+also covered TCP, UDP, and ICMP metadata; the VoIP capture's 404 ICMP packets did not themselves
+produce eligible feature windows.
+
+Deterministic replay runtime activation is also satisfied. Runtime loading verifies the accepted
+model and calibration checksums plus their feature-artifact and split-manifest bindings before
+scoring. Controlled replay, incremental feature construction, frozen CPU inference, prediction
+event provenance, completion, pause/resume, cancellation, and failure behavior are covered by the
+repository test suite. Cancellation does not flush an incomplete final runtime window.
+
+These results establish a deterministic research/demo runtime, not production operational
+suitability. Remaining work includes the external API and event transport, persistence, operator
+dashboard, bounded performance/resource measurements under operational workloads, separately
+designed OOD/robustness experiments, and later live capture.

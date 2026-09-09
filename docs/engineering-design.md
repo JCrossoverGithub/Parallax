@@ -5,14 +5,16 @@
 | Field | Value |
 | --- | --- |
 | Project name | Parallax |
-| Document version | 0.3 |
-| Status | Implemented through frozen uncertainty-model evaluation |
-| Date | 2026-08-23 |
+| Document version | 0.4 |
+| Status | Implemented through deterministic replay runtime inference |
+| Date | 2026-09-09 |
 | Owner | Josh Schultz |
 | Intended repository | `Parallax` |
 | Initial development environment | Windows 11 with WSL 2 Ubuntu 24.04 |
 
-> This document defines the intended system before implementation and will be revised as decisions are validated. The completed portfolio version should describe the system as built, not merely as originally planned.
+> This is a living engineering design. Implemented behavior is distinguished from planned
+> operator-layer and live-capture work so the document describes the system as built rather
+> than presenting future components as completed.
 
 ## 1. Executive Summary
 
@@ -26,6 +28,33 @@ The project has two equally important goals:
 2. Demonstrate the engineering required to turn an ML experiment into a tested, observable, reproducible application.
 
 This is not intended to be presented as a production intrusion-detection system or malware detector. The initial data contains a small, controlled set of applications and broad traffic categories. The system will make its claim boundaries and limitations explicit.
+
+### 1.1 Current implementation checkpoint
+
+Milestones 1 through 4 are complete. The implemented runtime now supports:
+
+- Metadata-only classic Raw-IP VNAT PCAP parsing for supported IPv4 ICMP, TCP, and UDP traffic.
+- Deterministic bidirectional flow construction with first-observed orientation.
+- Incremental capture-relative observation windows using the release-compatible eligibility policy.
+- The same 129-feature calculation used by the accepted offline feature path.
+- Deterministic replay at configured or maximum speed with pause, resume, cancel, completion,
+  and structured failure states.
+- Checksum- and provenance-verified loading of the accepted frozen prototype model and OOD
+  calibration artifacts.
+- CPU runtime scoring that returns raw class probabilities, selected category, raw confidence,
+  relative-Mahalanobis distance, and OOD score.
+- Stable runtime prediction events carrying session, window, model, calibration, feature-artifact,
+  and split-manifest identity.
+- Lifecycle-safe replay integration: completed sessions flush final eligible windows, while
+  cancelled or failed sessions do not turn incomplete buffered state into final predictions.
+
+Selected acceptance captures demonstrated exact batch/runtime feature parity: five eligible SSH
+windows and 45 eligible VoIP windows matched exactly with maximum absolute feature difference
+`0.0`.
+
+The external API/event transport, operational persistence, Angular dashboard, and live network
+sensor remain later work. Milestone 5 begins with the operator service and dashboard; live capture
+remains Milestone 6.
 
 ## 2. Background
 
