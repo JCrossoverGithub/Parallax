@@ -76,8 +76,8 @@ class OperatorLiveConflictError(OperatorServiceError):
 
 
 OperatorLiveExecutor = Callable[
-    [OperatorLiveConfiguration, Event],
-    None,
+    [str, OperatorLiveConfiguration, Event],
+    object,
 ]
 
 
@@ -502,6 +502,7 @@ class OperatorReplayService:
 
         try:
             executor(
+                run_id,
                 configuration,
                 stop_event,
             )

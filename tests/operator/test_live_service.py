@@ -87,7 +87,7 @@ def test_lists_available_live_interfaces(
 ) -> None:
     service = _service(
         tmp_path,
-        executor=lambda configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event: None,
     )
 
     assert service.list_live_interfaces() == _interfaces()
@@ -101,7 +101,7 @@ def test_interface_discovery_error_becomes_service_error(
 
     service = _service(
         tmp_path,
-        executor=lambda configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event: None,
         interface_lister=fail,
     )
 
@@ -132,7 +132,7 @@ def test_rejects_unknown_live_interface(
 ) -> None:
     service = _service(
         tmp_path,
-        executor=lambda configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event: None,
     )
 
     with pytest.raises(
@@ -148,6 +148,7 @@ def test_starts_stops_and_completes_owned_live_session(
     entered = Event()
 
     def execute(
+        run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
     ) -> None:
@@ -193,6 +194,7 @@ def test_only_one_live_session_may_be_active(
     entered = Event()
 
     def execute(
+        run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
     ) -> None:
@@ -227,7 +229,7 @@ def test_unknown_live_session_is_not_found(
 ) -> None:
     service = _service(
         tmp_path,
-        executor=lambda configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event: None,
     )
 
     with pytest.raises(
@@ -248,7 +250,7 @@ def test_terminal_live_session_rejects_stop(
 ) -> None:
     service = _service(
         tmp_path,
-        executor=lambda configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event: None,
     )
 
     created = service.start_live("eth0")
@@ -271,7 +273,7 @@ def test_normal_executor_return_completes_session(
 ) -> None:
     service = _service(
         tmp_path,
-        executor=lambda configuration, stop_event: None,
+        executor=lambda run_id, configuration, stop_event: None,
     )
 
     created = service.start_live("eth0")
@@ -289,6 +291,7 @@ def test_executor_failure_becomes_structured_live_failure(
     tmp_path: Path,
 ) -> None:
     def fail(
+        run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
     ) -> None:
@@ -321,6 +324,7 @@ def test_stop_while_starting_prevents_executor_start(
     executor_called = Event()
 
     def execute(
+        run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
     ) -> None:
@@ -362,6 +366,7 @@ def test_repeated_stop_request_remains_stopping(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def execute(
+        run_id: str,
         configuration: OperatorLiveConfiguration,
         stop_event: Event,
     ) -> None:

@@ -14,6 +14,7 @@ from parallax.features import (
 from parallax.modeling.runtime import load_prototype_runtime
 from parallax.operator.api import create_operator_app
 from parallax.operator.history import SqliteOperatorHistory
+from parallax.operator.live_runtime import OperatorLiveRuntimeExecutor
 from parallax.operator.service import OperatorModelIdentity, OperatorReplayService
 
 ACCEPTED_PROTOTYPE_MODEL_SHA256: Final = (
@@ -91,6 +92,7 @@ def create_operator_application(
         scorer=runtime,
         model_identity=OperatorModelIdentity.from_runtime(runtime),
         history=SqliteOperatorHistory(resolved.history_database),
+        live_executor=OperatorLiveRuntimeExecutor(runtime),
     )
 
     return create_operator_app(service)

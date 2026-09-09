@@ -19,6 +19,9 @@ from parallax.operator.live import (
     OperatorLiveSessionError,
     OperatorLiveState,
 )
+from parallax.operator.live_runtime import (
+    OperatorLiveRuntimeExecutor,
+)
 from parallax.operator.service import (
     OperatorEventBatch,
     OperatorEventCursorError,
@@ -42,6 +45,7 @@ __all__ = [
     "OperatorHistoryRecord",
     "OperatorLiveConfiguration",
     "OperatorLiveFailure",
+    "OperatorLiveRuntimeExecutor",
     "OperatorLiveSession",
     "OperatorLiveSessionError",
     "OperatorLiveState",
