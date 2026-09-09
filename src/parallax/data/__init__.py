@@ -16,13 +16,17 @@ from parallax.data.inspection import (
     inspect_vnat_file,
     load_verified_vnat_dataframe,
 )
-from parallax.data.pcap import (
+from parallax.data.packets import (
     IP_PROTOCOL_ICMP,
     IP_PROTOCOL_TCP,
     IP_PROTOCOL_UDP,
-    PCAP_LINKTYPE_RAW_IP,
+    PacketDecodeError,
     PacketMetadata,
     PacketSizePolicy,
+    decode_raw_ipv4_packet,
+)
+from parallax.data.pcap import (
+    PCAP_LINKTYPE_RAW_IP,
     PcapReadError,
     iter_pcap_packet_metadata,
 )
@@ -114,6 +118,7 @@ __all__ = [
     "FlowPacketAssignment",
     "IncrementalWindowTracker",
     "ObservationWindow",
+    "PacketDecodeError",
     "PacketMetadata",
     "PacketSizePolicy",
     "PcapReadError",
@@ -132,6 +137,7 @@ __all__ = [
     "WindowExtractionConfig",
     "WindowThresholdPolicy",
     "assign_capture_splits",
+    "decode_raw_ipv4_packet",
     "export_vnat_windows",
     "extract_capture_windows",
     "extract_vnat_pcap_windows",
