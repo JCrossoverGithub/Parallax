@@ -15,12 +15,18 @@ from parallax.sensor.interfaces import (
     list_capture_interfaces,
     resolve_capture_interface,
 )
+from parallax.sensor.source import (
+    LivePacketSource,
+    LivePacketSourceStats,
+)
 
 __all__ = [
     "CaptureInterface",
     "CapturedEthernetFrame",
     "EthernetFrameError",
     "LiveEthernetCapture",
+    "LivePacketSource",
+    "LivePacketSourceStats",
     "SensorCaptureError",
     "SensorInterfaceError",
     "decode_ethernet_ipv4_frame",
