@@ -366,7 +366,16 @@
 
                 <tbody>
                   @for (event of predictions(); track event.window.window_id) {
-                    <tr>
+                    <tr
+                      class="event-row"
+                      [class.selected]="
+                        selectedPrediction()?.window?.window_id === event.window.window_id
+                      "
+                      role="button"
+                      tabindex="0"
+                      (click)="selectPrediction(event)"
+                      (keydown.enter)="selectPrediction(event)"
+                    >
                       <td class="window-cell">#{{ event.window.window_index }}</td>
 
                       <td class="category-cell">
@@ -464,6 +473,188 @@
           }
         </aside>
       </section>
+
+      @if (selectedPrediction(); as selected) {
+        <div class="investigation-backdrop" (click)="closePrediction()">
+          <aside
+            class="investigation-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Prediction investigation"
+            (click)="$event.stopPropagation()"
+          >
+            <div class="drawer-header">
+              <div>
+                <span class="panel-kicker"> EVENT INVESTIGATION </span>
+
+                <h2>Window #{{ selected.window.window_index }}</h2>
+              </div>
+
+              <button
+                type="button"
+                class="drawer-close"
+                aria-label="Close investigation"
+                (click)="closePrediction()"
+              >
+                ×
+              </button>
+            </div>
+
+            <div class="drawer-classification">
+              <span>PREDICTED CATEGORY</span>
+
+              <strong>
+                {{ selected.classification.predicted_category }}
+              </strong>
+
+              <div class="drawer-score-grid">
+                <div>
+                  <span>RAW CONFIDENCE</span>
+
+                  <strong>
+                    {{ selected.classification.raw_confidence * 100 | number: '1.1-1' }}%
+                  </strong>
+                </div>
+
+                <div>
+                  <span>OOD SCORE</span>
+
+                  <strong>
+                    {{ selected.uncertainty.ood_score | number: '1.3-3' }}
+                  </strong>
+                </div>
+
+                <div>
+                  <span>RELATIVE MD</span>
+
+                  <strong>
+                    {{ selected.uncertainty.relative_mahalanobis_distance | number: '1.3-3' }}
+                  </strong>
+                </div>
+              </div>
+            </div>
+
+            <section class="drawer-section">
+              <span class="drawer-section-title"> CLASS DISTRIBUTION </span>
+
+              <div class="probabilities">
+                @for (
+                  category of selected.classification.category_order;
+                  track category;
+                  let index = $index
+                ) {
+                  <div class="probability">
+                    <div class="probability-label">
+                      <span>{{ category }}</span>
+
+                      <span> {{ probability(selected, index) * 100 | number: '1.1-1' }}% </span>
+                    </div>
+
+                    <div class="probability-track">
+                      <div
+                        class="probability-fill"
+                        [style.width.%]="probability(selected, index) * 100"
+                      ></div>
+                    </div>
+                  </div>
+                }
+              </div>
+            </section>
+
+            <section class="drawer-section">
+              <span class="drawer-section-title"> OBSERVATION WINDOW </span>
+
+              <dl class="drawer-details">
+                <div>
+                  <dt>Run ID</dt>
+                  <dd>{{ selected.run_id }}</dd>
+                </div>
+
+                <div>
+                  <dt>Window ID</dt>
+                  <dd>
+                    {{ selected.window.window_id }}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt>Flow ID</dt>
+                  <dd>
+                    {{ selected.window.flow_id }}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt>Capture ID</dt>
+                  <dd>
+                    {{ selected.window.capture_id }}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt>Packet count</dt>
+                  <dd>
+                    {{ selected.window.packet_count }}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt>Window start</dt>
+                  <dd>{{ selected.window.start_offset_seconds | number: '1.3-3' }} s</dd>
+                </div>
+
+                <div>
+                  <dt>Window end</dt>
+                  <dd>{{ selected.window.end_offset_seconds | number: '1.3-3' }} s</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section class="drawer-section">
+              <span class="drawer-section-title"> FROZEN RUNTIME PROVENANCE </span>
+
+              <dl class="drawer-details">
+                <div>
+                  <dt>Model</dt>
+                  <dd>
+                    {{ selected.provenance.model_bundle_sha256 }}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt>OOD calibration</dt>
+                  <dd>
+                    {{ selected.provenance.calibration_artifact_sha256 }}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt>Features</dt>
+                  <dd>
+                    {{ selected.provenance.feature_artifact_sha256 }}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt>Split manifest</dt>
+                  <dd>
+                    {{ selected.provenance.split_manifest_sha256 }}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            <div class="drawer-caution">
+              <span>INTERPRETATION</span>
+
+              <p>
+                Raw confidence represents preference among the five frozen closed-set classes. OOD
+                is an independent distribution-shift score. Neither value is a threat verdict.
+              </p>
+            </div>
+          </aside>
+        </div>
+      }
 
       <section class="details-grid">
         <article class="detail-panel">

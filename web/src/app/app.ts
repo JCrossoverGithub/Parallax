@@ -32,6 +32,7 @@ export class App implements OnDestroy {
   readonly replayPredictions = signal<RuntimePredictionEvent[]>([]);
   readonly livePredictions = signal<RuntimePredictionEvent[]>([]);
   readonly historyPredictions = signal<RuntimePredictionEvent[]>([]);
+  readonly selectedPrediction = signal<RuntimePredictionEvent | null>(null);
 
   readonly history = signal<ReplayHistoryRecord[]>([]);
   readonly liveInterfaces = signal<LiveInterface[]>([]);
@@ -191,6 +192,7 @@ export class App implements OnDestroy {
 
     this.workspace.set(workspace);
     this.error.set(null);
+    this.selectedPrediction.set(null);
 
     if (workspace !== 'history') {
       this.selectedHistoryRunId.set(null);
@@ -248,6 +250,7 @@ export class App implements OnDestroy {
     this.error.set(null);
     this.selectedHistoryRunId.set(null);
     this.livePredictions.set([]);
+    this.selectedPrediction.set(null);
 
     this.closeStream();
     this.stopPolling();
@@ -316,6 +319,7 @@ export class App implements OnDestroy {
 
     this.closeStream();
     this.stopPolling();
+    this.selectedPrediction.set(null);
 
     forkJoin({
       replay: this.api.getHistoryReplay(runId),
@@ -351,6 +355,7 @@ export class App implements OnDestroy {
     this.error.set(null);
     this.selectedHistoryRunId.set(null);
     this.replayPredictions.set([]);
+    this.selectedPrediction.set(null);
 
     this.closeStream();
     this.stopPolling();
@@ -430,6 +435,14 @@ export class App implements OnDestroy {
 
   trackPrediction(_index: number, event: RuntimePredictionEvent): string {
     return event.window.window_id;
+  }
+
+  selectPrediction(event: RuntimePredictionEvent): void {
+    this.selectedPrediction.set(event);
+  }
+
+  closePrediction(): void {
+    this.selectedPrediction.set(null);
   }
 
   probability(event: RuntimePredictionEvent, index: number): number {

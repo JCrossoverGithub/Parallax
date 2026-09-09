@@ -632,4 +632,57 @@ describe('App', () => {
     expect(component.selectedHistoryRunId()).toBeNull();
     expect(api.startReplay).toHaveBeenCalledOnce();
   });
+
+  it('opens an investigation for a selected prediction', () => {
+    component.livePredictions.set([
+      {
+        ...PREDICTION,
+        run_id: 'live-001',
+      },
+    ]);
+
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+
+    const row = compiled.querySelector('.event-row') as HTMLElement | null;
+
+    expect(row).not.toBeNull();
+
+    row?.click();
+    fixture.detectChanges();
+
+    expect(component.selectedPrediction()).not.toBeNull();
+    expect(component.selectedPrediction()?.window.window_id).toBe('window-001');
+
+    const drawer = compiled.querySelector('.investigation-drawer');
+
+    expect(drawer).not.toBeNull();
+    expect(drawer?.textContent).toContain('EVENT INVESTIGATION');
+    expect(drawer?.textContent).toContain('flow-001');
+    expect(drawer?.textContent).toContain('RELATIVE MD');
+    expect(drawer?.textContent).toContain('1.500');
+  });
+
+  it('closes an active prediction investigation', () => {
+    component.selectPrediction(PREDICTION);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.investigation-drawer')).not.toBeNull();
+
+    component.closePrediction();
+    fixture.detectChanges();
+
+    expect(component.selectedPrediction()).toBeNull();
+
+    expect(fixture.nativeElement.querySelector('.investigation-drawer')).toBeNull();
+  });
+
+  it('clears investigation state when changing workspace', () => {
+    component.selectPrediction(PREDICTION);
+
+    component.selectWorkspace('replay');
+
+    expect(component.selectedPrediction()).toBeNull();
+  });
 });
