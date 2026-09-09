@@ -106,7 +106,10 @@ class SensorIpcPacketSource:
         socket_factory: SensorIpcClientSocketFactory = (_default_socket_factory),
     ) -> None:
         if not interface.strip():
-            raise SensorIpcClientError("sensor interface must not be empty")
+            raise SensorIpcClientError(
+                "sensor interface must not be empty",
+                code="sensor_configuration_error",
+            )
 
         _validate_timeout(
             handshake_timeout_seconds,
@@ -143,7 +146,10 @@ class SensorIpcPacketSource:
     def open(self) -> None:
         """Connect and complete the sensor start/ready handshake."""
         if self._connection is not None:
-            raise SensorIpcClientError("sensor IPC packet source is already open")
+            raise SensorIpcClientError(
+                "sensor IPC packet source is already open",
+                code="sensor_state_error",
+            )
 
         self._buffer.clear()
         connection = self._socket_factory()
@@ -173,10 +179,16 @@ class SensorIpcPacketSource:
                 message,
                 SensorReadyMessage,
             ):
-                raise SensorIpcClientError("sensor IPC server did not send a ready message")
+                raise SensorIpcClientError(
+                    "sensor IPC server did not send a ready message",
+                    code="sensor_protocol_error",
+                )
 
             if message.interface != self._interface:
-                raise SensorIpcClientError("sensor IPC ready interface does not match request")
+                raise SensorIpcClientError(
+                    "sensor IPC ready interface does not match request",
+                    code="sensor_protocol_error",
+                )
 
             connection.settimeout(self._poll_timeout_seconds)
         except SensorIpcClientError:
@@ -186,11 +198,17 @@ class SensorIpcPacketSource:
         except SensorIpcProtocolError as error:
             _close_ignoring_error(connection)
             self._buffer.clear()
-            raise SensorIpcClientError("sensor IPC server sent an invalid message") from error
+            raise SensorIpcClientError(
+                "sensor IPC server sent an invalid message",
+                code="sensor_protocol_error",
+            ) from error
         except OSError as error:
             _close_ignoring_error(connection)
             self._buffer.clear()
-            raise SensorIpcClientError("could not open sensor IPC packet source") from error
+            raise SensorIpcClientError(
+                "could not open sensor IPC packet source",
+                code="sensor_unavailable",
+            ) from error
 
         self._connection = connection
 
@@ -199,7 +217,10 @@ class SensorIpcPacketSource:
         connection = self._connection
 
         if connection is None:
-            raise SensorIpcClientError("sensor IPC packet source is not open")
+            raise SensorIpcClientError(
+                "sensor IPC packet source is not open",
+                code="sensor_state_error",
+            )
 
         try:
             message = self._receive_message(
@@ -207,7 +228,10 @@ class SensorIpcPacketSource:
                 allow_timeout=True,
             )
         except SensorIpcProtocolError as error:
-            raise SensorIpcClientError("sensor IPC server sent an invalid message") from error
+            raise SensorIpcClientError(
+                "sensor IPC server sent an invalid message",
+                code="sensor_protocol_error",
+            ) from error
 
         if message is None:
             return None
@@ -227,7 +251,10 @@ class SensorIpcPacketSource:
                 code=message.code,
             )
 
-        raise SensorIpcClientError("sensor IPC server sent an unexpected message")
+        raise SensorIpcClientError(
+            "sensor IPC server sent an unexpected message",
+            code="sensor_protocol_error",
+        )
 
     def close(self) -> None:
         """Close the client; EOF tells the privileged sensor to stop."""
@@ -241,7 +268,10 @@ class SensorIpcPacketSource:
         try:
             connection.close()
         except OSError as error:
-            raise SensorIpcClientError("could not close sensor IPC packet source") from error
+            raise SensorIpcClientError(
+                "could not close sensor IPC packet source",
+                code="sensor_ipc_error",
+            ) from error
 
     def _receive_message(
         self,
@@ -268,12 +298,21 @@ class SensorIpcPacketSource:
                 if allow_timeout:
                     return None
 
-                raise SensorIpcClientError("timed out waiting for sensor IPC response") from error
+                raise SensorIpcClientError(
+                    "timed out waiting for sensor IPC response",
+                    code="sensor_timeout",
+                ) from error
             except OSError as error:
-                raise SensorIpcClientError("could not receive sensor IPC message") from error
+                raise SensorIpcClientError(
+                    "could not receive sensor IPC message",
+                    code="sensor_ipc_error",
+                ) from error
 
             if not chunk:
-                raise SensorIpcClientError("sensor IPC server disconnected")
+                raise SensorIpcClientError(
+                    "sensor IPC server disconnected",
+                    code="sensor_disconnected",
+                )
 
             self._buffer.extend(chunk)
 
@@ -302,7 +341,10 @@ def _validate_timeout(
     description: str,
 ) -> None:
     if not isfinite(value) or value <= 0.0:
-        raise SensorIpcClientError(f"{description} must be finite and positive")
+        raise SensorIpcClientError(
+            f"{description} must be finite and positive",
+            code="sensor_configuration_error",
+        )
 
 
 def _close_ignoring_error(

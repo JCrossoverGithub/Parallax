@@ -680,3 +680,150 @@ def test_default_factory_creates_unix_stream_socket(
             socket.SOCK_STREAM,
         )
     ]
+
+
+def test_connect_failure_has_unavailable_code() -> None:
+    source = _source(
+        ScriptedSocket(
+            [],
+            connect_error=OSError("connection refused"),
+        )
+    )
+
+    with pytest.raises(
+        SensorIpcClientError,
+    ) as failure:
+        source.open()
+
+    assert failure.value.code == "sensor_unavailable"
+
+
+def test_handshake_timeout_has_timeout_code() -> None:
+    source = _source(ScriptedSocket([TimeoutError("handshake timeout")]))
+
+    with pytest.raises(
+        SensorIpcClientError,
+    ) as failure:
+        source.open()
+
+    assert failure.value.code == "sensor_timeout"
+
+
+def test_invalid_handshake_has_protocol_code() -> None:
+    source = _source(
+        ScriptedSocket(
+            [
+                b"{not-json}\n",
+            ]
+        )
+    )
+
+    with pytest.raises(
+        SensorIpcClientError,
+    ) as failure:
+        source.open()
+
+    assert failure.value.code == "sensor_protocol_error"
+
+
+def test_disconnect_has_disconnect_code() -> None:
+    source = _source(
+        ScriptedSocket(
+            [
+                _ready(),
+                b"",
+            ]
+        )
+    )
+
+    source.open()
+
+    try:
+        with pytest.raises(
+            SensorIpcClientError,
+        ) as failure:
+            source.receive()
+
+        assert failure.value.code == "sensor_disconnected"
+    finally:
+        source.close()
+
+
+def test_receive_transport_failure_has_ipc_code() -> None:
+    source = _source(
+        ScriptedSocket(
+            [
+                _ready(),
+                OSError("recv failed"),
+            ]
+        )
+    )
+
+    source.open()
+
+    try:
+        with pytest.raises(
+            SensorIpcClientError,
+        ) as failure:
+            source.receive()
+
+        assert failure.value.code == "sensor_ipc_error"
+    finally:
+        source.close()
+
+
+def test_invalid_client_configuration_has_configuration_code() -> None:
+    with pytest.raises(
+        SensorIpcClientError,
+    ) as failure:
+        SensorIpcPacketSource(
+            "/tmp/sensor.sock",
+            " ",
+        )
+
+    assert failure.value.code == "sensor_configuration_error"
+
+
+def test_invalid_client_state_has_state_code() -> None:
+    source = _source(ScriptedSocket([]))
+
+    with pytest.raises(
+        SensorIpcClientError,
+    ) as failure:
+        source.receive()
+
+    assert failure.value.code == "sensor_state_error"
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "capture_error",
+        "interface_error",
+        "protocol_error",
+        "invalid_request",
+    ],
+)
+def test_preserves_server_originated_error_codes(
+    code: str,
+) -> None:
+    source = _source(
+        ScriptedSocket(
+            [
+                encode_sensor_ipc_message(
+                    SensorErrorMessage(
+                        code=code,
+                        message="sensor reported failure",
+                    )
+                )
+            ]
+        )
+    )
+
+    with pytest.raises(
+        SensorIpcClientError,
+        match="sensor reported failure",
+    ) as failure:
+        source.open()
+
+    assert failure.value.code == code
