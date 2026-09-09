@@ -15,6 +15,13 @@ from parallax.sensor.interfaces import (
     list_capture_interfaces,
     resolve_capture_interface,
 )
+from parallax.sensor.ipc_client import (
+    DEFAULT_SENSOR_IPC_SOCKET_PATH,
+    SensorIpcClientError,
+    SensorIpcClientSocket,
+    SensorIpcClientSocketFactory,
+    SensorIpcPacketSource,
+)
 from parallax.sensor.ipc_protocol import (
     SENSOR_IPC_MAX_MESSAGE_BYTES,
     SENSOR_IPC_SCHEMA_VERSION,
@@ -40,6 +47,7 @@ from parallax.sensor.source import (
 )
 
 __all__ = [
+    "DEFAULT_SENSOR_IPC_SOCKET_PATH",
     "SENSOR_IPC_MAX_MESSAGE_BYTES",
     "SENSOR_IPC_SCHEMA_VERSION",
     "CaptureInterface",
@@ -51,7 +59,11 @@ __all__ = [
     "SensorCaptureError",
     "SensorErrorMessage",
     "SensorInterfaceError",
+    "SensorIpcClientError",
+    "SensorIpcClientSocket",
+    "SensorIpcClientSocketFactory",
     "SensorIpcMessage",
+    "SensorIpcPacketSource",
     "SensorIpcProtocolError",
     "SensorIpcServerError",
     "SensorIpcSession",
