@@ -700,3 +700,296 @@ def test_live_event_snapshot_preserves_global_cursor(
         window_indices.append(window["window_index"])
 
     assert window_indices == [1, 2]
+
+
+def test_persists_completed_live_session_and_events(
+    tmp_path: Path,
+) -> None:
+    from typing import cast
+
+    from parallax.operator.history import (
+        SqliteOperatorHistory,
+    )
+    from parallax.runtime import (
+        RuntimePredictionEvent,
+        RuntimeScorer,
+    )
+
+    class FakeEvent:
+        def __init__(
+            self,
+            run_id: str,
+        ) -> None:
+            self.run_id = run_id
+
+        def as_dict(
+            self,
+        ) -> dict[str, object]:
+            return {
+                "schema_version": ("parallax-runtime-prediction-1"),
+                "run_id": self.run_id,
+                "window": {
+                    "capture_id": (f"live:eth0:{self.run_id}"),
+                    "window_index": 0,
+                },
+            }
+
+    def execute(
+        run_id: str,
+        configuration: OperatorLiveConfiguration,
+        stop_event: Event,
+        handle_event: Callable[
+            [RuntimePredictionEvent],
+            None,
+        ],
+    ) -> None:
+        assert configuration.interface == "eth0"
+        assert not stop_event.is_set()
+
+        handle_event(
+            cast(
+                RuntimePredictionEvent,
+                FakeEvent(run_id),
+            )
+        )
+
+    path = tmp_path / "operator.sqlite3"
+    history = SqliteOperatorHistory(path)
+
+    service = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=cast(
+            RuntimeScorer,
+            object(),
+        ),
+        model_identity=_identity(),
+        history=history,
+        live_executor=execute,
+        live_interface_lister=_interfaces,
+        live_interface_resolver=_resolve_interface,
+    )
+
+    created = service.start_live("eth0")
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        OperatorLiveState.COMPLETED,
+    )
+
+    persisted = service.get_history_live(created.run_id)
+    events = service.get_history_live_events(created.run_id)
+
+    assert persisted.state is OperatorLiveState.COMPLETED
+    assert persisted.interface == "eth0"
+    assert persisted.stale_after_seconds == 120.0
+    assert persisted.max_tracked_flows == 4_096
+    assert persisted.event_count == 1
+    assert persisted.failure_code is None
+
+    assert len(events) == 1
+    assert events[0]["run_id"] == created.run_id
+
+    reopened = SqliteOperatorHistory(path)
+
+    restarted = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=cast(
+            RuntimeScorer,
+            object(),
+        ),
+        model_identity=_identity(),
+        history=reopened,
+    )
+
+    assert [record.run_id for record in restarted.list_live_history()] == [created.run_id]
+
+    assert restarted.get_history_live(created.run_id) == persisted
+
+    assert restarted.get_history_live_events(created.run_id) == events
+
+
+def test_persists_failed_live_session(
+    tmp_path: Path,
+) -> None:
+    from typing import cast
+
+    from parallax.operator.history import (
+        SqliteOperatorHistory,
+    )
+    from parallax.runtime import RuntimeScorer
+
+    def execute(
+        run_id: str,
+        configuration: OperatorLiveConfiguration,
+        stop_event: Event,
+        handle_event: object,
+    ) -> None:
+        raise RuntimeError("synthetic persisted failure")
+
+    history = SqliteOperatorHistory(tmp_path / "operator.sqlite3")
+
+    service = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=cast(
+            RuntimeScorer,
+            object(),
+        ),
+        model_identity=_identity(),
+        history=history,
+        live_executor=execute,
+        live_interface_lister=_interfaces,
+        live_interface_resolver=_resolve_interface,
+    )
+
+    created = service.start_live("eth0")
+
+    _wait_for_state(
+        service,
+        created.run_id,
+        OperatorLiveState.FAILED,
+    )
+
+    persisted = service.get_history_live(created.run_id)
+
+    assert persisted.state is OperatorLiveState.FAILED
+    assert persisted.failure_code == "live_execution_error"
+    assert persisted.failure_message == "synthetic persisted failure"
+
+
+def test_service_marks_interrupted_live_history_failed(
+    tmp_path: Path,
+) -> None:
+    from typing import cast
+
+    from parallax.operator.history import (
+        OperatorLiveHistoryRecord,
+        SqliteOperatorHistory,
+    )
+    from parallax.runtime import RuntimeScorer
+
+    history = SqliteOperatorHistory(tmp_path / "operator.sqlite3")
+
+    history.save_live_session(
+        OperatorLiveHistoryRecord(
+            run_id="interrupted-live",
+            interface="eth0",
+            state=OperatorLiveState.RUNNING,
+            stale_after_seconds=120.0,
+            max_tracked_flows=4_096,
+            event_count=7,
+            failure_code=None,
+            failure_message=None,
+        )
+    )
+
+    service = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=cast(
+            RuntimeScorer,
+            object(),
+        ),
+        model_identity=_identity(),
+        history=history,
+    )
+
+    persisted = service.get_history_live("interrupted-live")
+
+    assert persisted.state is OperatorLiveState.FAILED
+    assert persisted.event_count == 7
+    assert persisted.failure_code == "operator_restart"
+
+
+def test_service_without_history_has_no_live_history(
+    tmp_path: Path,
+) -> None:
+    def execute(
+        run_id: str,
+        configuration: OperatorLiveConfiguration,
+        stop_event: Event,
+        handle_event: object,
+    ) -> None:
+        return None
+
+    service = _service(
+        tmp_path,
+        executor=execute,
+    )
+
+    assert service.list_live_history() == ()
+
+    with pytest.raises(
+        OperatorLiveNotFoundError,
+        match="persisted live session",
+    ):
+        service.get_history_live("missing")
+
+    with pytest.raises(
+        OperatorLiveNotFoundError,
+        match="persisted live session",
+    ):
+        service.get_history_live_events("missing")
+
+
+def test_live_history_validation_errors_become_service_errors(
+    tmp_path: Path,
+) -> None:
+    from typing import cast
+
+    from parallax.operator.history import (
+        SqliteOperatorHistory,
+    )
+    from parallax.runtime import RuntimeScorer
+
+    history = SqliteOperatorHistory(tmp_path / "operator.sqlite3")
+
+    service = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=cast(
+            RuntimeScorer,
+            object(),
+        ),
+        model_identity=_identity(),
+        history=history,
+    )
+
+    with pytest.raises(
+        OperatorServiceError,
+        match=("live history list limit must be positive"),
+    ):
+        service.list_live_history(limit=0)
+
+
+def test_configured_history_rejects_unknown_live_session(
+    tmp_path: Path,
+) -> None:
+    from typing import cast
+
+    from parallax.operator.history import (
+        SqliteOperatorHistory,
+    )
+    from parallax.runtime import RuntimeScorer
+
+    history = SqliteOperatorHistory(tmp_path / "operator.sqlite3")
+
+    service = OperatorReplayService(
+        capture_root=tmp_path,
+        scorer=cast(
+            RuntimeScorer,
+            object(),
+        ),
+        model_identity=_identity(),
+        history=history,
+    )
+
+    with pytest.raises(
+        OperatorLiveNotFoundError,
+        match="persisted live session",
+    ):
+        service.get_history_live("missing")
+
+    with pytest.raises(
+        OperatorLiveNotFoundError,
+        match="persisted live session",
+    ):
+        service.get_history_live_events("missing")

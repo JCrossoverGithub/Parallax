@@ -316,6 +316,21 @@ class SqliteOperatorHistory:
                     serialized,
                 ),
             )
+            connection.execute(
+                """
+                UPDATE live_sessions
+                SET event_count = CASE
+                    WHEN event_count < ? THEN ?
+                    ELSE event_count
+                END
+                WHERE run_id = ?
+                """,
+                (
+                    sequence,
+                    sequence,
+                    run_id,
+                ),
+            )
 
     def get_live_session(
         self,
@@ -392,6 +407,30 @@ class SqliteOperatorHistory:
             ).fetchall()
 
         return tuple(_load_event_payload(str(row["payload_json"])) for row in rows)
+
+    def fail_interrupted_live_sessions(self) -> int:
+        """Mark live sessions interrupted by an operator restart as failed."""
+        with self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE live_sessions
+                SET
+                    state = ?,
+                    failure_code = ?,
+                    failure_message = ?
+                WHERE state IN (?, ?, ?)
+                """,
+                (
+                    OperatorLiveState.FAILED.value,
+                    "operator_restart",
+                    ("operator process restarted before the live session reached a terminal state"),
+                    OperatorLiveState.STARTING.value,
+                    OperatorLiveState.RUNNING.value,
+                    OperatorLiveState.STOPPING.value,
+                ),
+            )
+
+        return cursor.rowcount
 
     def _initialize(self) -> None:
         with self._connect() as connection:

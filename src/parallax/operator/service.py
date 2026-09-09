@@ -12,6 +12,7 @@ from parallax.modeling.runtime import PrototypeRuntime
 from parallax.operator.history import (
     OperatorHistoryError,
     OperatorHistoryRecord,
+    OperatorLiveHistoryRecord,
     SqliteOperatorHistory,
 )
 from parallax.operator.live import (
@@ -239,6 +240,9 @@ class OperatorReplayService:
         self._live_records: dict[str, _LiveRecord] = {}
         self._lock = RLock()
 
+        if self._history is not None:
+            self._history.fail_interrupted_live_sessions()
+
     def health(self) -> dict[str, object]:
         """Return service and active-model status."""
         with self._lock:
@@ -309,6 +313,10 @@ class OperatorReplayService:
                 raise OperatorLiveConflictError("a live sensor session is already active")
 
             self._live_records[run_id] = record
+            self._persist_live(
+                record,
+                run_id=run_id,
+            )
 
         thread = Thread(
             target=self._execute_live,
@@ -419,6 +427,10 @@ class OperatorReplayService:
                 record.session = record.session.transition(OperatorLiveState.STOPPING)
 
             record.stop_event.set()
+            self._persist_live(
+                record,
+                run_id=run_id,
+            )
             return record.session
 
     def start_replay(
@@ -516,6 +528,46 @@ class OperatorReplayService:
         assert self._history is not None
         return self._history.get_events(run_id)
 
+    def list_live_history(
+        self,
+        *,
+        limit: int = 100,
+    ) -> tuple[OperatorLiveHistoryRecord, ...]:
+        """Return persisted live-session history newest first."""
+        if self._history is None:
+            return ()
+
+        try:
+            return self._history.list_live_sessions(limit=limit)
+        except OperatorHistoryError as error:
+            raise OperatorServiceError(str(error)) from error
+
+    def get_history_live(
+        self,
+        run_id: str,
+    ) -> OperatorLiveHistoryRecord:
+        """Return one persisted live-session summary."""
+        if self._history is None:
+            raise OperatorLiveNotFoundError(f"persisted live session {run_id!r} does not exist")
+
+        record = self._history.get_live_session(run_id)
+
+        if record is None:
+            raise OperatorLiveNotFoundError(f"persisted live session {run_id!r} does not exist")
+
+        return record
+
+    def get_history_live_events(
+        self,
+        run_id: str,
+    ) -> tuple[dict[str, object], ...]:
+        """Return persisted prediction events for one live session."""
+        self.get_history_live(run_id)
+
+        assert self._history is not None
+
+        return self._history.get_live_events(run_id)
+
     def get_event_batch(
         self,
         run_id: str,
@@ -593,6 +645,14 @@ class OperatorReplayService:
             record = self._require_live_record(run_id)
             record.events.append(event)
             record.total_events += 1
+            sequence = record.total_events
+
+            if self._history is not None:
+                self._history.save_live_event(
+                    run_id,
+                    sequence,
+                    event.as_dict(),
+                )
 
     def _execute_live(
         self,
@@ -603,8 +663,17 @@ class OperatorReplayService:
 
             if record.session.state is OperatorLiveState.STOPPING:
                 record.session = record.session.transition(OperatorLiveState.COMPLETED)
+                self._persist_live(
+                    record,
+                    run_id=run_id,
+                )
                 return
+
             record.session = record.session.transition(OperatorLiveState.RUNNING)
+            self._persist_live(
+                record,
+                run_id=run_id,
+            )
             configuration = record.session.configuration
             stop_event = record.stop_event
 
@@ -628,6 +697,10 @@ class OperatorReplayService:
                     code="live_execution_error",
                     message=str(error),
                 )
+                self._persist_live(
+                    record,
+                    run_id=run_id,
+                )
             return
 
         with self._lock:
@@ -637,6 +710,10 @@ class OperatorReplayService:
                 record.session = record.session.transition(OperatorLiveState.STOPPING)
 
             record.session = record.session.transition(OperatorLiveState.COMPLETED)
+            self._persist_live(
+                record,
+                run_id=run_id,
+            )
 
     def _execute_replay(
         self,
@@ -711,6 +788,40 @@ class OperatorReplayService:
 
         if self._history is not None:
             self._history.save_replay(history_record)
+
+    def _persist_live(
+        self,
+        record: _LiveRecord,
+        *,
+        run_id: str,
+    ) -> None:
+        if self._history is not None:
+            self._history.save_live_session(
+                self._make_live_history_record(
+                    record,
+                    run_id=run_id,
+                )
+            )
+
+    @staticmethod
+    def _make_live_history_record(
+        record: _LiveRecord,
+        *,
+        run_id: str,
+    ) -> OperatorLiveHistoryRecord:
+        failure = record.session.failure
+        configuration = record.session.configuration
+
+        return OperatorLiveHistoryRecord(
+            run_id=run_id,
+            interface=configuration.interface,
+            state=record.session.state,
+            stale_after_seconds=(configuration.stale_after_seconds),
+            max_tracked_flows=(configuration.max_tracked_flows),
+            event_count=record.total_events,
+            failure_code=(None if failure is None else failure.code),
+            failure_message=(None if failure is None else failure.message),
+        )
 
     def _persist_replay(
         self,
