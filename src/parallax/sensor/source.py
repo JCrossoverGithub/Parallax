@@ -80,8 +80,8 @@ class LivePacketSource:
         self._non_ipv4_frames = 0
         self._invalid_frames = 0
 
-    def receive(self) -> PacketMetadata:
-        """Return the next supported live IPv4 packet.
+    def receive(self) -> PacketMetadata | None:
+        """Return the next supported live IPv4 packet, or None after a quiet poll.
 
         Ethernet traffic that is not IPv4, or IPv4 frames that cannot satisfy
         the current Parallax packet contract, is discarded without retaining
@@ -89,6 +89,10 @@ class LivePacketSource:
         """
         while True:
             frame = self._capture.receive()
+
+            if frame is None:
+                return None
+
             self._frames_received += 1
 
             try:

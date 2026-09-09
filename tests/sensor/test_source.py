@@ -29,6 +29,12 @@ class QueueSocket:
     def bind(self, address: tuple[str, int]) -> None:
         self.bound_address = address
 
+    def settimeout(
+        self,
+        value: float | None,
+    ) -> None:
+        pass
+
     def recv(self, bufsize: int) -> bytes:
         assert bufsize == 65_535
         if not self.frames:
@@ -130,6 +136,7 @@ def test_receives_supported_packet_and_updates_stats() -> None:
 
     source.open()
     packet = source.receive()
+    assert packet is not None
 
     assert packet.timestamp_seconds == 123.5
     assert packet.source_address == "10.0.0.10"
@@ -167,6 +174,7 @@ def test_skips_irrelevant_and_invalid_frames() -> None:
 
     source.open()
     packet = source.receive()
+    assert packet is not None
 
     assert packet.protocol == IP_PROTOCOL_UDP
     assert source.stats == LivePacketSourceStats(
@@ -189,6 +197,7 @@ def test_ip_packet_size_policy_is_forwarded_to_decoder() -> None:
 
     source.open()
     packet = source.receive()
+    assert packet is not None
 
     assert packet.size == len(raw_ip)
 
@@ -224,7 +233,36 @@ def test_context_manager_owns_capture_lifecycle() -> None:
     with source as active_source:
         assert active_source is source
         assert source.is_open
-        assert active_source.receive().protocol == IP_PROTOCOL_UDP
+        packet = active_source.receive()
+        assert packet is not None
+        assert packet.protocol == IP_PROTOCOL_UDP
 
     assert fake_socket.closed
     assert not source.is_open
+
+
+def test_empty_capture_poll_returns_no_packet() -> None:
+    class QuietSocket(QueueSocket):
+        def recv(self, bufsize: int) -> bytes:
+            assert bufsize == 65_535
+            raise TimeoutError("quiet poll")
+
+    fake_socket = QuietSocket([])
+
+    capture = LiveEthernetCapture(
+        _interface(),
+        socket_factory=lambda: fake_socket,
+    )
+    source = LivePacketSource(capture)
+
+    source.open()
+
+    assert source.receive() is None
+    assert source.stats == LivePacketSourceStats(
+        frames_received=0,
+        packets_decoded=0,
+        non_ipv4_frames=0,
+        invalid_frames=0,
+    )
+
+    source.close()

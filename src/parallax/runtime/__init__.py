@@ -7,6 +7,7 @@ from parallax.runtime.events import (
 from parallax.runtime.live import (
     LiveRuntimeError,
     LiveRuntimeEventHandler,
+    LiveRuntimeStopRequested,
     LiveRuntimeSummary,
     RuntimePacketSource,
     run_live_packet_predictions,
@@ -22,6 +23,7 @@ __all__ = [
     "RUNTIME_PREDICTION_EVENT_SCHEMA_VERSION",
     "LiveRuntimeError",
     "LiveRuntimeEventHandler",
+    "LiveRuntimeStopRequested",
     "LiveRuntimeSummary",
     "PacketPredictionPipeline",
     "RuntimeEventHandler",

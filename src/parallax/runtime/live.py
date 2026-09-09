@@ -19,8 +19,8 @@ class RuntimePacketSource(Protocol):
     def open(self) -> None:
         """Open the underlying packet source."""
 
-    def receive(self) -> PacketMetadata:
-        """Return the next supported packet."""
+    def receive(self) -> PacketMetadata | None:
+        """Return the next supported packet, or None after an empty poll."""
 
     def close(self) -> None:
         """Close the underlying packet source."""
@@ -39,12 +39,16 @@ class RuntimePacketPipeline(Protocol):
         """Flush final eligible windows."""
 
 
-LiveRuntimeEventHandler = Callable[[RuntimePredictionEvent], None]
+LiveRuntimeEventHandler = Callable[
+    [RuntimePredictionEvent],
+    None,
+]
+LiveRuntimeStopRequested = Callable[[], bool]
 
 
 @dataclass(frozen=True, slots=True)
 class LiveRuntimeSummary:
-    """Operational summary of one bounded live inference run."""
+    """Operational summary of one live inference run."""
 
     packets_processed: int
     events_emitted: int
@@ -61,13 +65,17 @@ def run_live_packet_predictions(
     source: RuntimePacketSource,
     *,
     pipeline: RuntimePacketPipeline,
-    packet_limit: int,
+    packet_limit: int | None = None,
+    stop_requested: LiveRuntimeStopRequested | None = None,
     handle_event: LiveRuntimeEventHandler,
     clock: Callable[[], float] | None = None,
 ) -> LiveRuntimeSummary:
-    """Run a bounded live packet source through the shared prediction pipeline."""
-    if packet_limit < 1:
+    """Run live packets until a limit is reached or stop is requested."""
+    if packet_limit is not None and packet_limit < 1:
         raise LiveRuntimeError("live packet limit must be positive")
+
+    if packet_limit is None and stop_requested is None:
+        raise LiveRuntimeError("live runtime requires a packet limit or stop signal")
 
     selected_clock = clock if clock is not None else time.perf_counter
 
@@ -80,8 +88,15 @@ def run_live_packet_predictions(
     started_at = selected_clock()
 
     try:
-        for _ in range(packet_limit):
+        while packet_limit is None or packets_processed < packet_limit:
+            if stop_requested is not None and stop_requested():
+                break
+
             packet = source.receive()
+
+            if packet is None:
+                continue
+
             packets_processed += 1
 
             processing_started_at = selected_clock()
@@ -117,7 +132,10 @@ def run_live_packet_predictions(
         packet_rate_per_second = 0.0
         event_rate_per_second = 0.0
 
-    mean_processing_latency_ms = (total_processing_seconds / packets_processed) * 1_000.0
+    if packets_processed > 0:
+        mean_processing_latency_ms = total_processing_seconds / packets_processed * 1_000.0
+    else:
+        mean_processing_latency_ms = 0.0
 
     total_pipeline_processing_seconds = total_processing_seconds + finalization_seconds
 
@@ -127,8 +145,8 @@ def run_live_packet_predictions(
         elapsed_seconds=elapsed_seconds,
         packet_rate_per_second=packet_rate_per_second,
         event_rate_per_second=event_rate_per_second,
-        mean_processing_latency_ms=mean_processing_latency_ms,
-        max_processing_latency_ms=max_processing_seconds * 1_000.0,
-        finalization_latency_ms=finalization_seconds * 1_000.0,
+        mean_processing_latency_ms=(mean_processing_latency_ms),
+        max_processing_latency_ms=(max_processing_seconds * 1_000.0),
+        finalization_latency_ms=(finalization_seconds * 1_000.0),
         total_pipeline_processing_ms=(total_pipeline_processing_seconds * 1_000.0),
     )

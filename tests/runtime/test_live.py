@@ -47,7 +47,7 @@ class FakeSource:
     def open(self) -> None:
         self.open_calls += 1
 
-    def receive(self) -> PacketMetadata:
+    def receive(self) -> PacketMetadata | None:
         self.receive_calls += 1
 
         if self.receive_error is not None:
@@ -241,3 +241,96 @@ def test_zero_elapsed_time_reports_zero_rates() -> None:
         finalization_latency_ms=0.0,
         total_pipeline_processing_ms=0.0,
     )
+
+
+def test_requires_packet_limit_or_stop_signal() -> None:
+    source = FakeSource([])
+
+    with pytest.raises(
+        LiveRuntimeError,
+        match="requires a packet limit or stop signal",
+    ):
+        run_live_packet_predictions(
+            source,
+            pipeline=FakePipeline([]),
+            handle_event=lambda event: None,
+        )
+
+    assert source.open_calls == 0
+
+
+def test_empty_polls_do_not_count_as_packets() -> None:
+    class PollingSource(FakeSource):
+        def __init__(self) -> None:
+            super().__init__([_packet("only")])
+            self.empty_polls = 2
+
+        def receive(self) -> PacketMetadata | None:
+            self.receive_calls += 1
+
+            if self.empty_polls > 0:
+                self.empty_polls -= 1
+                return None
+
+            return self.packets.popleft()
+
+    source = PollingSource()
+    pipeline = FakePipeline([()])
+
+    summary = run_live_packet_predictions(
+        source,
+        pipeline=pipeline,
+        packet_limit=1,
+        handle_event=lambda event: None,
+        clock=ScriptedClock(
+            [
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+            ]
+        ),
+    )
+
+    assert source.receive_calls == 3
+    assert summary.packets_processed == 1
+
+
+def test_stop_signal_ends_unbounded_run_and_finalizes() -> None:
+    source = FakeSource([])
+    pipeline = FakePipeline(
+        [],
+        finish_events=(_event("final"),),
+    )
+    events: list[RuntimePredictionEvent] = []
+    stop_checks = 0
+
+    def stop_requested() -> bool:
+        nonlocal stop_checks
+        stop_checks += 1
+        return stop_checks >= 1
+
+    summary = run_live_packet_predictions(
+        source,
+        pipeline=pipeline,
+        stop_requested=stop_requested,
+        handle_event=events.append,
+        clock=ScriptedClock(
+            [
+                10.0,
+                10.0,
+                10.0,
+                10.0,
+            ]
+        ),
+    )
+
+    assert summary.packets_processed == 0
+    assert summary.events_emitted == 1
+    assert summary.mean_processing_latency_ms == 0.0
+    assert source.receive_calls == 0
+    assert source.close_calls == 1
+    assert pipeline.finish_calls == 1
+    assert events == [_event("final")]

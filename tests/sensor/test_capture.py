@@ -15,6 +15,7 @@ class FakeSocket:
         self.bound_address: tuple[str, int] | None = None
         self.closed = False
         self.recv_sizes: list[int] = []
+        self.timeout_seconds: float | None = None
         self.recv_result = b"ethernet-frame"
         self.bind_error: OSError | None = None
         self.recv_error: OSError | None = None
@@ -24,6 +25,9 @@ class FakeSocket:
         if self.bind_error is not None:
             raise self.bind_error
         self.bound_address = address
+
+    def settimeout(self, value: float | None) -> None:
+        self.timeout_seconds = value
 
     def recv(self, bufsize: int) -> bytes:
         self.recv_sizes.append(bufsize)
@@ -54,6 +58,7 @@ def test_opens_and_binds_selected_interface() -> None:
     assert capture.interface == _interface()
     assert capture.is_open
     assert fake_socket.bound_address == ("eth0", 0)
+    assert fake_socket.timeout_seconds == 0.25
 
     capture.close()
 
@@ -259,6 +264,64 @@ def test_context_manager_opens_and_closes_capture() -> None:
     with capture as active_capture:
         assert active_capture is capture
         assert capture.is_open
+
+    assert fake_socket.closed
+    assert not capture.is_open
+
+
+@pytest.mark.parametrize(
+    "poll_timeout_seconds",
+    [0.0, -1.0, float("inf"), float("-inf"), float("nan")],
+)
+def test_rejects_invalid_poll_timeout(
+    poll_timeout_seconds: float,
+) -> None:
+    with pytest.raises(
+        SensorCaptureError,
+        match="capture poll timeout must be finite and positive",
+    ):
+        LiveEthernetCapture(
+            _interface(),
+            socket_factory=FakeSocket,
+            poll_timeout_seconds=poll_timeout_seconds,
+        )
+
+
+def test_receive_timeout_returns_no_frame() -> None:
+    fake_socket = FakeSocket()
+    fake_socket.recv_error = TimeoutError("quiet poll")
+
+    capture = LiveEthernetCapture(
+        _interface(),
+        socket_factory=lambda: fake_socket,
+    )
+    capture.open()
+
+    assert capture.receive() is None
+
+    capture.close()
+
+
+def test_wraps_poll_timeout_configuration_error() -> None:
+    class TimeoutConfigurationFailureSocket(FakeSocket):
+        def settimeout(
+            self,
+            value: float | None,
+        ) -> None:
+            raise OSError("timeout configuration failed")
+
+    fake_socket = TimeoutConfigurationFailureSocket()
+
+    capture = LiveEthernetCapture(
+        _interface(),
+        socket_factory=lambda: fake_socket,
+    )
+
+    with pytest.raises(
+        SensorCaptureError,
+        match="could not configure live capture poll timeout",
+    ):
+        capture.open()
 
     assert fake_socket.closed
     assert not capture.is_open

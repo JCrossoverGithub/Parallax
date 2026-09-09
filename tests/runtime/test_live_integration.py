@@ -36,6 +36,12 @@ class QueueSocket:
     def bind(self, address: tuple[str, int]) -> None:
         assert address == ("eth0", 0)
 
+    def settimeout(
+        self,
+        value: float | None,
+    ) -> None:
+        pass
+
     def recv(self, bufsize: int) -> bytes:
         assert bufsize == 65_535
 
