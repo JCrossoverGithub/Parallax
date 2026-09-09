@@ -2,7 +2,7 @@
 
 ## Current status
 
-Milestones 1 through 4 are complete. Milestone 5 is next.
+Milestones 1 through 5 are complete. Milestone 6 is next.
 
 | Milestone | Status | Outcome |
 | --- | --- | --- |
@@ -10,112 +10,223 @@ Milestones 1 through 4 are complete. Milestone 5 is next.
 | 2. Modeling and uncertainty | Complete | Baselines, frozen prototype candidate, calibration artifact, and one accepted final test evaluation |
 | 3. Raw-PCAP parity | Complete | Metadata-only parsing, bidirectional flows, PCAP windows, and exact selected-capture feature parity |
 | 4. Replayable runtime | Complete | Controlled replay through incremental features, frozen inference, and runtime prediction events |
-| 5. Operator layer | Next | API/event service, replay controls, persistence, health, and operations dashboard |
-| 6. Live sensor and hardening | Later | Least-privilege live capture, bounded-resource validation, observability, and operational hardening |
+| 5. Operator layer | Complete | REST controls, SSE prediction streaming, Angular dashboard, durable replay history, and restart-safe history inspection |
+| 6. Live sensor and hardening | Next | Least-privilege live capture, bounded-resource validation, observability, and operational hardening |
 
-## Milestone 4 completion evidence
+## Milestone 4 - Replayable runtime
 
-The replayable runtime is considered functionally complete because the repository now provides:
+Milestone 4 established the deterministic runtime that Milestone 5 now hosts.
 
-- Replay session lifecycle contracts with created, running, paused, completed, failed, and cancelled states.
-- Configurable replay timing plus maximum-speed execution.
-- Interruptible pause, resume, and cancellation behavior.
-- Lazy PCAP replay entries carrying parsed packet metadata.
+Implemented behavior includes:
+
+- Replay lifecycle states: created, running, paused, completed, failed, and cancelled.
+- Configured replay speed and maximum-speed execution.
+- Interruptible pause, resume, and cancellation.
+- Lazy PCAP replay entries containing metadata rather than packet payloads.
 - Incremental bidirectional flow tracking.
 - Incremental observation-window construction.
 - Shared offline/runtime 129-feature calculation.
 - Checksum- and provenance-bound loading of the accepted frozen prototype model.
 - Checksum- and provenance-bound loading of the accepted OOD calibration artifact.
 - Runtime classification and OOD scoring.
-- Stable `RuntimePredictionEvent` serialization.
-- Packet-to-prediction orchestration.
-- Controlled replay integration that flushes final windows only after successful completion.
+- Stable RuntimePredictionEvent serialization.
+- Successful-completion-only final-window flushing.
 
-Selected real-data acceptance evidence:
+Selected real-data parity evidence:
 
 | Capture | Parsed packets | Eligible windows | Incremental/batch parity | Maximum feature difference |
 | --- | ---: | ---: | --- | ---: |
 | `nonvpn_ssh_capture4.pcap` | 626 | 5 | 5 / 5 exact | 0.0 |
 | `nonvpn_voip_capture2.pcap` | 119,103 | 45 | 45 / 45 exact | 0.0 |
 
-The accepted model and OOD calibration also completed a runtime smoke test over all 50 of those
-incrementally generated windows. That smoke test verified mechanical inference, finite normalized
-class probabilities, bounded OOD scores, and exact artifact provenance. It intentionally did not
-perform model selection, threshold tuning, or a new accepted-test evaluation.
-
-At the Milestone 4 repository gate:
-
-- 729 tests passed.
-- Statement coverage was 100%.
-- Branch coverage was 100%.
-- Ruff passed.
-- mypy passed.
-- The locked dependency graph passed.
-- Source distribution and wheel builds succeeded.
+The accepted model and OOD calibration completed a mechanical runtime smoke test over all 50
+incrementally generated windows. This did not perform model selection, threshold tuning, or a new
+accepted-test evaluation.
 
 ## Milestone 5 - Operator layer
 
-### Goal
+### Status
 
-Turn the verified runtime into a usable operator-facing application without changing the accepted
-model or feature semantics.
+Complete.
 
-### First vertical slice
+### Implemented architecture
 
-The first Milestone 5 slice is deliberately narrow:
+The operator path is now:
 
-> Start one PCAP replay from the operator interface and watch real
-> `RuntimePredictionEvent` records appear as the replay progresses.
+VNAT PCAP
+-> controlled packet replay
+-> incremental flow tracking
+-> incremental observation windows
+-> shared 129-feature calculation
+-> accepted frozen classifier and OOD calibration
+-> ordered RuntimePredictionEvent
+-> server-sent event stream
+-> Angular operator dashboard
 
-This slice should prove the boundary from the existing runtime into the service and browser before
-additional dashboard functionality is added.
+Operational state also follows:
 
-### Planned sequence
+Replay/session state and prediction events
+-> local SQLite history
+-> process restart boundary
+-> history REST API
+-> Angular Replay History view
 
-1. **Runtime service boundary**
-   - Host replay sessions in a long-running application process.
-   - Load the accepted model/calibration once at startup.
-   - Expose health and active-model identity.
-   - Create and control replay sessions.
+### Runtime service and API
 
-2. **Versioned API and event transport**
-   - Start, inspect, pause, resume, and cancel a replay.
-   - Stream ordered runtime prediction and session-state events.
-   - Provide a snapshot/reconnect mechanism so clients can recover missed state.
-   - Keep browser clients isolated from raw model files and internal control objects.
+The operator service:
 
-3. **Initial dashboard**
-   - Replay selection and start controls.
-   - Running/paused/completed/failed/cancelled session state.
-   - Time-ordered prediction feed.
-   - Category probabilities.
-   - Raw predictive confidence.
-   - OOD score shown independently from confidence.
-   - Capture, window, model, calibration, and feature provenance.
+- Loads the accepted model and calibration artifacts once at application startup.
+- Verifies their expected checksums and provenance.
+- Restricts replay selection to capture filenames under the configured capture root.
+- Hosts replay execution in a long-running process.
+- Reports service health and active model identity.
+- Starts and inspects replay sessions.
+- Supports pause, resume, and cancel controls.
+- Maintains bounded in-memory live-event history.
+- Preserves stable event sequence numbers.
+- Rejects expired or invalid event cursors.
+- Exposes ordered runtime prediction events using SSE.
+- Supports browser reconnection through SSE event identifiers and Last-Event-ID semantics.
+- Does not expose packet payloads or model files to browser clients.
 
-4. **Operational persistence and history**
-   - Persist replay sessions, predictions, failures, and active artifact identity.
-   - Support session history and replay-result inspection.
-   - Preserve the no-payload-retention boundary.
+SSE was selected instead of WebSockets because the prediction transport is server-to-browser while
+replay controls remain ordinary REST operations.
 
-5. **Observability and operator polish**
-   - Processing counters and latency measurements.
-   - Explicit invalid/dropped-window reporting.
-   - Service-health display.
-   - Clear research/demo limitations in the UI.
+### Angular operator dashboard
 
-### Milestone 5 completion boundary
+The dashboard provides:
 
-Milestone 5 is complete when an operator can start and control a replay through the UI, observe
-ordered predictions and uncertainty in real time, reconnect without losing session state, inspect
-completed session history, and verify the active artifact provenance without accessing packet
-payloads.
+- Capture selection.
+- Configured-speed and maximum-speed replay.
+- Start, pause, resume, and cancel controls.
+- Running, paused, completed, failed, and cancelled state display.
+- Live prediction-event count.
+- Current predicted category.
+- Raw predictive confidence.
+- OOD score displayed independently from predictive confidence.
+- Per-category probability bars.
+- Time-ordered prediction history.
+- Packet count and pseudonymous flow identity per prediction window.
+- Service-health display.
+- Capture, model, and calibration provenance.
+- Persisted Replay History.
+- Read-only reopening of completed historical sessions.
+
+### Durable history
+
+Milestone 5 uses a local SQLite database for operator replay history.
+
+Persisted information includes:
+
+- Replay identity.
+- Source capture identity and checksum.
+- Replay state.
+- Replay timing configuration.
+- Prediction-event count.
+- Structured failure information.
+- Ordered runtime prediction events.
+- Per-prediction model, calibration, feature-artifact, and split-manifest provenance.
+
+Packet payloads are not persisted.
+
+Historical sessions are intentionally read-only. An old session cannot issue pause, resume, or
+cancel commands against an unrelated or nonexistent in-memory replay.
+
+### Acceptance evidence
+
+The operator path was exercised using both selected real VNAT captures.
+
+SSH operator demonstration:
+
+- `nonvpn_ssh_capture4.pcap`
+- 626 parsed packets.
+- 5 eligible runtime prediction windows.
+- 5 operator-visible prediction events.
+- Successful terminal completion.
+
+VoIP operator demonstration:
+
+- `nonvpn_voip_capture2.pcap`
+- 119,103 parsed packets.
+- 45 eligible runtime prediction windows.
+- 45 operator-visible prediction events.
+- Successful terminal completion.
+
+The VoIP session was also used to verify durable history:
+
+1. A new replay completed with 45 prediction events.
+2. The replay and events were written to SQLite.
+3. The operator API process was terminated.
+4. A new API process was started.
+5. The prior session remained available through the history API.
+6. The Angular dashboard reopened the historical session.
+7. Its stored prediction events and historical prediction provenance were restored.
+
+This persistence test crosses a real process-restart boundary rather than merely constructing a
+second service object in the same process.
+
+### Quality boundary
+
+Milestone 5 is covered by:
+
+- Strict Python typing with mypy.
+- Ruff formatting and linting.
+- 100% statement and branch coverage for the Python operator package.
+- Angular component and API-client behavior tests.
+- Angular production builds.
+- Repository-wide locked dependency, lint, type, test, coverage, and build gates.
+
+Detailed processing-latency instrumentation, dropped-window metrics, resource-bound measurements,
+and live-sensor observability remain part of Milestone 6 hardening rather than being invented solely
+to extend Milestone 5.
 
 ## Milestone 6 - Live sensor and hardening
 
-Milestone 6 introduces live local-interface capture only after the replay-backed operator path is
-stable. It will focus on least privilege, bounded active-flow/resource behavior, measured runtime
-performance, failure isolation, and clear separation between replayed and live traffic.
+### Goal
 
-Live capture does not change the accepted experimental evidence or authorize stronger claims about
-model accuracy or OOD detection.
+Replace the prerecorded PCAP source with live packet metadata while retaining the already-verified
+flow, window, feature, inference, event, persistence, and operator paths.
+
+The intended boundary is:
+
+JPCMAIN local network interface
+-> narrow packet-metadata sensor
+-> existing incremental flow tracker
+-> existing incremental window tracker
+-> existing shared feature calculation
+-> existing frozen runtime
+-> existing RuntimePredictionEvent
+-> existing SSE/operator service
+-> existing dashboard and history
+
+### Initial sequence
+
+1. Define a live packet-source contract compatible with the replay packet path.
+2. Identify the correct JPCMAIN/WSL capture boundary and available interfaces.
+3. Capture only the packet metadata required by Parallax.
+4. Feed live metadata into the existing incremental runtime without duplicating feature logic.
+5. Establish clean start/stop and failure behavior.
+6. Measure active-flow count, memory use, processing latency, and sustained packet rate.
+7. Introduce explicit bounded-resource policies.
+8. Keep privileged packet capture isolated from the API and dashboard where practical.
+9. Make replay and live modes visually unambiguous.
+10. Document the security/privacy boundary and measured limitations.
+
+Live capture does not change the accepted VNAT experiment, authorize model retuning, or establish
+accuracy/OOD performance on arbitrary real-world traffic.
+
+## Experimental integrity
+
+The following boundaries remain unchanged:
+
+- The accepted final VNAT test evaluation is not rerun for tuning or inspection.
+- The accepted model and OOD calibration artifacts are not modified to accommodate runtime data.
+- Validation remains candidate-selection data.
+- Calibration remains OOD-density fitting data.
+- Accepted test data remains a one-time frozen final evaluation.
+- Raw class probabilities are not described as calibrated probabilities.
+- Accepted test results do not establish true OOD detection performance because that test contained
+  no true OOD examples.
+- VNAT C2 is benign SSH/RDP traffic and must not be described as malicious command-and-control.
+- Raw captures, generated datasets, models, and operational databases remain outside Git.
+- Packet payloads are not logged or persisted.

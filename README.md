@@ -15,21 +15,21 @@ prototypical embedding model with relative-Mahalanobis OOD calibration. The cand
 one checksum-bound test evaluation after its model, calibration, thresholds, and reporting policy
 were frozen. Raw-PCAP ingestion, deterministic bidirectional flow reconstruction, incremental
 capture-aligned windowing, shared runtime feature construction, controlled replay, checksum-bound
-runtime inference, and an operator-facing prediction-event contract are implemented. Selected
-VNAT SSH and VoIP captures have exact batch/runtime feature parity. Persistence, the external API
-and event transport, the operations dashboard, and live monitoring are not yet implemented.
+runtime inference, the operator REST/SSE service, Angular operations dashboard, and durable SQLite
+replay history are implemented. Selected VNAT SSH and VoIP captures have exact batch/runtime feature
+parity, and the 45-window VoIP operator run has been restored successfully across an API-process
+restart.
 
-Milestone 4 completes the deterministic replay runtime through operator-facing prediction
-events. The next operational target is the Milestone 5 operator layer:
+Milestones 1 through 5 are complete. The next operational target is Milestone 6 live sensing:
 
 ```text
-VNAT PCAP -> controlled replay -> flows -> windows -> features
-          -> frozen model + OOD calibration -> RuntimePredictionEvent
-          -> API/event service -> operations dashboard
+local interface -> metadata sensor -> flows -> windows -> features
+                -> frozen model + OOD calibration -> RuntimePredictionEvent
+                -> SSE/operator service -> operations dashboard + history
 ```
 
-The first Milestone 5 vertical slice will start one replay from the operator interface and display
-real runtime prediction events as they are produced.
+Live capture remains separate from the accepted VNAT experiment and does not authorize model
+retuning or stronger accuracy/OOD claims.
 
 OOD means out of distribution. It is reported independently from ordinary predictive
 confidence so unfamiliar traffic is not silently presented as a trustworthy known category.

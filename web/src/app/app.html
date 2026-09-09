@@ -1,0 +1,376 @@
+<div class="shell">
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">PARALLAX</div>
+      <h1>Encrypted Traffic Operator</h1>
+    </div>
+
+    <div class="service-status">
+      <span
+        class="status-dot"
+        [class.online]="health()?.status === 'ok'"
+      ></span>
+
+      {{ health()?.status === 'ok' ? 'Service online' : 'Service unavailable' }}
+    </div>
+  </header>
+
+  @if (error()) {
+    <div class="error-banner">
+      {{ error() }}
+    </div>
+  }
+
+  <main>
+    <section class="control-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-number">01</span>
+          <h2>Replay Control</h2>
+        </div>
+
+        @if (replay()) {
+          <span
+            class="state-badge"
+            [attr.data-state]="replay()?.state"
+          >
+            {{ replay()?.state }}
+          </span>
+        }
+      </div>
+
+      <div class="control-grid">
+        <label>
+          <span>Capture</span>
+          <input
+            [(ngModel)]="capture"
+            [disabled]="active()"
+          />
+        </label>
+
+        <label>
+          <span>Replay speed</span>
+
+          <div class="speed-control">
+            <input
+              type="number"
+              min="0.01"
+              step="0.25"
+              [(ngModel)]="timeScale"
+              [disabled]="maximumSpeed || active()"
+            />
+
+            <span>x</span>
+          </div>
+        </label>
+
+        <label class="checkbox">
+          <input
+            type="checkbox"
+            [(ngModel)]="maximumSpeed"
+            [disabled]="active()"
+          />
+          Maximum speed
+        </label>
+      </div>
+
+      <div class="buttons">
+        <button
+          class="primary"
+          (click)="startReplay()"
+          [disabled]="active() || busy()"
+        >
+          {{ busy() ? 'Starting...' : 'Start Replay' }}
+        </button>
+
+        <button
+          (click)="pause()"
+          [disabled]="!canPause()"
+        >
+          Pause
+        </button>
+
+        <button
+          (click)="resume()"
+          [disabled]="!canResume()"
+        >
+          Resume
+        </button>
+
+        <button
+          class="danger"
+          (click)="cancel()"
+          [disabled]="!active()"
+        >
+          Cancel
+        </button>
+      </div>
+    </section>
+
+    <section class="metrics">
+      <article class="metric">
+        <span>Session state</span>
+        <strong>
+          {{ replay()?.state ?? 'idle' }}
+        </strong>
+      </article>
+
+      <article class="metric">
+        <span>Prediction events</span>
+        <strong>
+          {{ predictions().length }}
+        </strong>
+      </article>
+
+      <article class="metric">
+        <span>Latest category</span>
+        <strong>
+          {{ latestPrediction()?.classification?.predicted_category ?? '—' }}
+        </strong>
+      </article>
+
+      <article class="metric">
+        <span>Event stream</span>
+        <strong>
+          {{ streamConnected() ? 'live' : 'idle' }}
+        </strong>
+      </article>
+    </section>
+
+    @if (latestPrediction(); as latest) {
+      <section class="prediction-focus">
+        <div class="section-heading">
+          <div>
+            <span class="section-number">02</span>
+            <h2>Current Classification</h2>
+          </div>
+        </div>
+
+        <div class="focus-grid">
+          <div class="classification-card">
+            <span class="muted">Predicted category</span>
+
+            <div class="category">
+              {{ latest.classification.predicted_category }}
+            </div>
+
+            <div class="confidence-row">
+              <div>
+                <span>Raw confidence</span>
+                <strong>
+                  {{ latest.classification.raw_confidence * 100 | number:'1.1-1' }}%
+                </strong>
+              </div>
+
+              <div>
+                <span>OOD score</span>
+                <strong>
+                  {{ latest.uncertainty.ood_score | number:'1.3-3' }}
+                </strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="probabilities">
+            @for (
+              category of latest.classification.category_order;
+              track category;
+              let index = $index
+            ) {
+              <div class="probability">
+                <div class="probability-label">
+                  <span>{{ category }}</span>
+
+                  <span>
+                    {{
+                      probability(latest, index) * 100
+                        | number:'1.1-1'
+                    }}%
+                  </span>
+                </div>
+
+                <div class="probability-track">
+                  <div
+                    class="probability-fill"
+                    [style.width.%]="probability(latest, index) * 100"
+                  ></div>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      </section>
+    }
+
+    <section class="events-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-number">03</span>
+          <h2>Prediction Stream</h2>
+        </div>
+
+        <span class="muted">
+          {{ predictions().length }} events
+        </span>
+      </div>
+
+      @if (predictions().length === 0) {
+        <div class="empty-state">
+          Start a replay to receive runtime predictions.
+        </div>
+      } @else {
+        <div class="event-table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Window</th>
+                <th>Category</th>
+                <th>Confidence</th>
+                <th>OOD</th>
+                <th>Packets</th>
+                <th>Flow</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              @for (
+                event of predictions();
+                track event.window.window_id
+              ) {
+                <tr>
+                  <td>
+                    #{{ event.window.window_index }}
+                  </td>
+
+                  <td class="category-cell">
+                    {{ event.classification.predicted_category }}
+                  </td>
+
+                  <td>
+                    {{
+                      event.classification.raw_confidence * 100
+                        | number:'1.1-1'
+                    }}%
+                  </td>
+
+                  <td>
+                    {{
+                      event.uncertainty.ood_score
+                        | number:'1.3-3'
+                    }}
+                  </td>
+
+                  <td>
+                    {{ event.window.packet_count }}
+                  </td>
+
+                  <td class="mono">
+                    {{ event.window.flow_id }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+
+    <section class="history-panel">
+      <div class="section-heading">
+        <div>
+          <span class="section-number">04</span>
+          <h2>Replay History</h2>
+        </div>
+
+        <span class="muted">
+          {{ history().length }} stored sessions
+        </span>
+      </div>
+
+      @if (history().length === 0) {
+        <div class="empty-state">
+          Completed replay sessions will appear here.
+        </div>
+      } @else {
+        <div class="history-list">
+          @for (item of history(); track item.run_id) {
+            <button
+              type="button"
+              class="history-row"
+              [class.selected]="
+                selectedHistoryRunId() === item.run_id
+              "
+              [disabled]="active() || historyBusy()"
+              (click)="openHistory(item.run_id)"
+            >
+              <span class="history-source">
+                <strong>{{ item.source_id }}</strong>
+                <span class="mono">
+                  {{ item.run_id }}
+                </span>
+              </span>
+
+              <span
+                class="state-badge"
+                [attr.data-state]="item.state"
+              >
+                {{ item.state }}
+              </span>
+
+              <span class="history-stat">
+                {{ item.event_count }} events
+              </span>
+
+              <span class="history-stat">
+                {{
+                  item.time_scale === null
+                    ? 'max speed'
+                    : item.time_scale + 'x'
+                }}
+              </span>
+            </button>
+          }
+        </div>
+      }
+    </section>
+
+    @if (replay()) {
+      <section class="provenance-panel">
+        <div class="section-heading">
+          <div>
+            <span class="section-number">05</span>
+            <h2>Runtime Provenance</h2>
+          </div>
+        </div>
+
+        <dl>
+          <div>
+            <dt>Run ID</dt>
+            <dd>{{ replay()?.run_id }}</dd>
+          </div>
+
+          <div>
+            <dt>Capture SHA-256</dt>
+            <dd>{{ replay()?.source_sha256 }}</dd>
+          </div>
+
+          <div>
+            <dt>Model SHA-256</dt>
+            <dd>{{
+              latestPrediction()?.provenance?.model_bundle_sha256 ??
+                health()?.active_model?.model_bundle_sha256
+            }}</dd>
+          </div>
+
+          <div>
+            <dt>Calibration SHA-256</dt>
+            <dd>{{
+              latestPrediction()?.provenance?.calibration_artifact_sha256 ??
+                health()?.active_model?.calibration_artifact_sha256
+            }}</dd>
+          </div>
+        </dl>
+      </section>
+    }
+  </main>
+</div>

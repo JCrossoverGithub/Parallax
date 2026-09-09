@@ -1,0 +1,10 @@
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: #081018;
+}
+
+body {
+  min-width: 320px;
+}

@@ -5,16 +5,16 @@
 | Field | Value |
 | --- | --- |
 | Project name | Parallax |
-| Document version | 0.4 |
-| Status | Implemented through deterministic replay runtime inference |
+| Document version | 0.5 |
+| Status | Implemented through operator replay service, dashboard, and durable replay history |
 | Date | 2026-09-09 |
 | Owner | Josh Schultz |
 | Intended repository | `Parallax` |
 | Initial development environment | Windows 11 with WSL 2 Ubuntu 24.04 |
 
-> This is a living engineering design. Implemented behavior is distinguished from planned
-> operator-layer and live-capture work so the document describes the system as built rather
-> than presenting future components as completed.
+> This is a living engineering design. Implemented replay, runtime, operator-service,
+> dashboard, and persistence behavior is distinguished from planned live-capture and hardening
+> work so the document describes the system as built.
 
 ## 1. Executive Summary
 
@@ -52,9 +52,9 @@ Selected acceptance captures demonstrated exact batch/runtime feature parity: fi
 windows and 45 eligible VoIP windows matched exactly with maximum absolute feature difference
 `0.0`.
 
-The external API/event transport, operational persistence, Angular dashboard, and live network
-sensor remain later work. Milestone 5 begins with the operator service and dashboard; live capture
-remains Milestone 6.
+The operator REST API, SSE prediction transport, Angular dashboard, and durable SQLite replay
+history are implemented. Historical predictions remain readable across an API-process restart.
+Live local-interface capture and measured operational hardening remain Milestone 6.
 
 ## 2. Background
 
@@ -192,7 +192,7 @@ Given a labeled or unlabeled PCAP file, the system shall replay the traffic thro
 | Neural ML | PyTorch | Prototypical network and learned embedding implementation |
 | Experiment tracking | MLflow | Record parameters, metrics, artifacts, and model candidates |
 | API | FastAPI and Pydantic | Typed REST and event contracts |
-| Persistence | PostgreSQL, SQLAlchemy, and Alembic | Durable operational records and migrations |
+| Persistence | SQLite, SQLAlchemy, and Alembic | Durable operational records and migrations |
 | Dashboard | Angular, TypeScript, RxJS, and ECharts | Tested operations UI with streaming state and charts |
 | Deployment | Docker Compose and Nginx | Reproducible local and demonstration deployment |
 | Quality | pytest, Ruff, mypy, Playwright | Unit, static, integration, and browser testing |
@@ -235,7 +235,7 @@ flowchart TD
         G --> H[Shared feature pipeline]
         H --> I[Inference service]
         E --> I
-        I --> J[(PostgreSQL)]
+        I --> J[(SQLite)]
         I --> K[REST and event API]
         K --> L[Angular dashboard]
     end
@@ -249,7 +249,7 @@ sequenceDiagram
     participant Flow as Flow engine
     participant Features as Feature pipeline
     participant Model as Inference service
-    participant Store as PostgreSQL
+    participant Store as SQLite
     participant UI as Dashboard
 
     Source->>Flow: Timestamped packet metadata
@@ -539,17 +539,16 @@ Every reported run must record:
 
 ```text
 GET    /health
-GET    /api/v1/models/active
-GET    /api/v1/models
-GET    /api/v1/sessions
-GET    /api/v1/sessions/{sessionId}
 POST   /api/v1/replays
-POST   /api/v1/replays/{sessionId}/pause
-POST   /api/v1/replays/{sessionId}/resume
-POST   /api/v1/replays/{sessionId}/stop
-GET    /api/v1/sessions/{sessionId}/predictions
-GET    /api/v1/sessions/{sessionId}/events
-WS     /api/v1/events
+GET    /api/v1/replays/{runId}
+GET    /api/v1/replays/{runId}/events
+GET    /api/v1/replays/{runId}/stream
+POST   /api/v1/replays/{runId}/pause
+POST   /api/v1/replays/{runId}/resume
+POST   /api/v1/replays/{runId}/cancel
+GET    /api/v1/history
+GET    /api/v1/history/{runId}
+GET    /api/v1/history/{runId}/events
 ```
 
 ### 13.2 Prediction contract draft
@@ -818,9 +817,9 @@ Exit criteria:
 Deliverables:
 
 - Replay engine
-- Inference API
-- PostgreSQL persistence
-- Ordered event stream
+- Frozen runtime inference integration
+- Runtime prediction-event contract
+- Controlled replay orchestration
 - End-to-end integration tests
 
 Exit criteria:
@@ -837,6 +836,9 @@ Deliverables:
 - Health and model information
 - Reconnect behavior
 - Browser tests
+- SSE prediction streaming
+- SQLite replay history
+- Restart-safe historical result inspection
 
 Exit criteria:
 
@@ -912,7 +914,7 @@ The following initial decisions should be recorded as individual ADRs when the r
 | ADR-005 | Implement deterministic replay before live packet capture | Proposed |
 | ADR-006 | Keep inference and CI CPU-compatible | Proposed |
 | ADR-007 | Persist metadata and predictions, not packet payloads | Proposed |
-| ADR-008 | Use PostgreSQL for operational state | Proposed |
+| ADR-008 | Use SQLite for operational state | Proposed |
 | ADR-009 | Defer Kafka, Kubernetes, and Rust until measurements justify them | Proposed |
 
 ## 22. Open Questions
@@ -925,7 +927,7 @@ The following initial decisions should be recorded as individual ADRs when the r
 | OQ-005 | Partially resolved: 0.95 and 0.99 are frozen reference thresholds; comparative application-held-out evidence remains future work. | Separate OOD study |
 | OQ-006 | Resolved: selected SSH and VoIP raw PCAPs reproduce offline flow, window, and 129-feature records exactly under the release-compatible contracts. | Milestone 3 |
 | OQ-007 | Should runtime feature vectors be retained for public demo sessions? | Milestone 4 security review |
-| OQ-008 | Is WebSocket replay sufficient, or is a replayable server-sent event stream simpler for the final UI? | Milestone 4 |
+| OQ-008 | Resolved: SSE is used for one-way ordered prediction delivery while replay controls remain REST operations. | Milestone 5 |
 | OQ-009 | What Windows capture mechanism provides the cleanest least-privilege boundary? | Milestone 6 |
 | OQ-010 | Which metrics and views materially help an analyst rather than merely decorating the dashboard? | Milestone 5 usability review |
 
@@ -962,14 +964,14 @@ The final as-built report should clearly separate measured results from planned 
 
 ## 25. Immediate Next Step
 
-Close Milestone 3 by publishing its PCAP provenance and parity evidence, passing the aggregate
-branch quality gate, and merging the raw-PCAP feature branch. Then begin Milestone 4 with the
-replay-session identity, state-machine, configuration, timing, and terminal-error contracts before
-adding infrastructure dependencies.
+Begin Milestone 6 with the smallest live-sensor slice: identify the JPCMAIN/WSL capture boundary,
+define a live packet-metadata source compatible with the existing incremental runtime, and route
+live metadata into the already-tested flow, window, feature, inference, SSE, persistence, and
+dashboard path.
 
-The operational replay path must be incremental and bounded rather than relying on whole-capture
-materialization. The existing batch PCAP implementation remains the parity oracle. The frozen
-model and calibration artifacts must not be changed to accommodate runtime discrepancies.
+Do not duplicate the feature pipeline or modify the accepted frozen model/calibration to accommodate
+live traffic. Live behavior must be measured separately and must not be presented as new VNAT
+accuracy or OOD evidence.
 
 ---
 
@@ -979,5 +981,6 @@ model and calibration artifacts must not be changed to accommodate runtime discr
 | --- | --- | --- |
 | 0.1 | 2026-08-18 | Initial project definition, architecture, requirements, evaluation plan, security boundaries, milestones, and acceptance criteria |
 | 0.2 | 2026-08-18 | Adopted Parallax as the permanent project and repository name |
+| 0.5 | 2026-09-09 | Completed the operator service, REST/SSE controls, Angular dashboard, SQLite replay history, and restart-persistence acceptance; Milestone 6 live sensing is next. |
 | 0.3 | 2026-08-23 | Recorded the implemented baseline, frozen prototype, calibration-only OOD workflow, one-shot test evidence, and Milestone 3 handoff |
 | 0.4 | 2026-09-03 | Recorded raw-PCAP provenance, ICMP and UDP compatibility behavior, exact selected-capture feature parity, Milestone 3 completion, and Milestone 4 handoff |
