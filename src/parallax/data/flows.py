@@ -68,6 +68,16 @@ class BidirectionalFlowTracker:
         self._previous_timestamp: float | None = None
         self._packet_number = 0
 
+    @property
+    def packet_count(self) -> int:
+        """Return the number of packets assigned by this tracker."""
+        return self._packet_number
+
+    @property
+    def tracked_flow_count(self) -> int:
+        """Return the number of unique bidirectional flows currently retained."""
+        return len(self._builders)
+
     def push(self, packet: PacketMetadata) -> FlowPacketAssignment:
         """Validate and append one packet, returning its canonical flow assignment."""
         packet_number = self._packet_number + 1

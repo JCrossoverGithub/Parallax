@@ -1,5 +1,6 @@
 """Incremental packet-to-prediction runtime pipeline."""
 
+from dataclasses import dataclass
 from typing import Protocol
 
 from parallax.data import (
@@ -21,6 +22,16 @@ class RuntimePipelineError(ValueError):
     """Raised when packet prediction runtime state is invalid."""
 
 
+@dataclass(frozen=True, slots=True)
+class RuntimePipelineStats:
+    """Immutable operational counters for one prediction pipeline."""
+
+    packets_processed: int
+    tracked_flow_count: int
+    prediction_events_emitted: int
+    finished: bool
+
+
 class RuntimeScorer(Protocol):
     """Structural contract for frozen runtime feature scorers."""
 
@@ -35,6 +46,7 @@ class PacketPredictionPipeline:
     """Incrementally transform packet metadata into prediction events."""
 
     __slots__ = (
+        "_events_emitted",
         "_finished",
         "_flow_tracker",
         "_run_id",
@@ -60,7 +72,18 @@ class PacketPredictionPipeline:
             capture_id,
             config=window_config,
         )
+        self._events_emitted = 0
         self._finished = False
+
+    @property
+    def stats(self) -> RuntimePipelineStats:
+        """Return current operational counters without mutating runtime state."""
+        return RuntimePipelineStats(
+            packets_processed=self._flow_tracker.packet_count,
+            tracked_flow_count=self._flow_tracker.tracked_flow_count,
+            prediction_events_emitted=self._events_emitted,
+            finished=self._finished,
+        )
 
     def push(
         self,
@@ -99,4 +122,5 @@ class PacketPredictionPipeline:
                 )
             )
 
+        self._events_emitted += len(events)
         return tuple(events)

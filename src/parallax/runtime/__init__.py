@@ -14,6 +14,7 @@ from parallax.runtime.live import (
 from parallax.runtime.pipeline import (
     PacketPredictionPipeline,
     RuntimePipelineError,
+    RuntimePipelineStats,
     RuntimeScorer,
 )
 
@@ -26,6 +27,7 @@ __all__ = [
     "RuntimeEventHandler",
     "RuntimePacketSource",
     "RuntimePipelineError",
+    "RuntimePipelineStats",
     "RuntimePredictionEvent",
     "RuntimeScorer",
     "RuntimeSessionHandler",

@@ -14,6 +14,7 @@ from parallax.modeling.runtime import PrototypeRuntimePrediction
 from parallax.runtime.pipeline import (
     PacketPredictionPipeline,
     RuntimePipelineError,
+    RuntimePipelineStats,
 )
 
 
@@ -194,3 +195,70 @@ def test_rejects_empty_run_id() -> None:
             capture_id="nonvpn_ssh_capture4.pcap",
             scorer=FakeScorer(),
         )
+
+
+def test_pipeline_stats_track_packets_flows_events_and_finish_state() -> None:
+    class StatsScorer:
+        def score_feature(
+            self,
+            feature: RuntimeWindowFeature,
+        ) -> PrototypeRuntimePrediction:
+            return _prediction(feature.window_id)
+
+    scorer = StatsScorer()
+    pipeline = PacketPredictionPipeline(
+        run_id="run-stats",
+        capture_id="live:eth0:stats",
+        scorer=scorer,
+        window_config=WindowExtractionConfig(
+            window_seconds=1.0,
+            minimum_packets=1,
+        ),
+    )
+
+    assert pipeline.stats == RuntimePipelineStats(
+        packets_processed=0,
+        tracked_flow_count=0,
+        prediction_events_emitted=0,
+        finished=False,
+    )
+
+    pipeline.push(
+        PacketMetadata(
+            timestamp_seconds=100.0,
+            source_address="10.0.0.1",
+            source_port=50_000,
+            destination_address="10.0.0.2",
+            destination_port=443,
+            protocol=6,
+            size=100,
+        )
+    )
+    pipeline.push(
+        PacketMetadata(
+            timestamp_seconds=100.2,
+            source_address="10.0.0.2",
+            source_port=443,
+            destination_address="10.0.0.1",
+            destination_port=50_000,
+            protocol=6,
+            size=120,
+        )
+    )
+
+    assert pipeline.stats == RuntimePipelineStats(
+        packets_processed=2,
+        tracked_flow_count=1,
+        prediction_events_emitted=0,
+        finished=False,
+    )
+
+    events = pipeline.finish()
+
+    assert len(events) == 1
+    assert pipeline.stats == RuntimePipelineStats(
+        packets_processed=2,
+        tracked_flow_count=1,
+        prediction_events_emitted=1,
+        finished=True,
+    )
