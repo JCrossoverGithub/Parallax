@@ -7,7 +7,7 @@ from pathlib import Path
 from parallax.data.pcap import PacketSizePolicy
 from parallax.data.pcap_windowing import extract_vnat_pcap_windows
 from parallax.data.vnat import CaptureMetadata
-from parallax.data.windowing import WindowExtractionConfig
+from parallax.data.windowing import ObservationWindow, WindowExtractionConfig
 from parallax.features.calculator import (
     FeatureCalculationConfig,
     calculate_feature_vector,
@@ -29,6 +29,29 @@ class VnatWindowFeature:
     values: Float32Array
 
 
+def calculate_vnat_window_feature(
+    window: ObservationWindow,
+    *,
+    feature_config: FeatureCalculationConfig | None = None,
+) -> VnatWindowFeature:
+    """Calculate one traceable feature vector from an eligible observation window."""
+    return VnatWindowFeature(
+        window_id=window.window_id,
+        capture=window.capture,
+        flow_id=window.flow_id,
+        window_index=window.window_index,
+        start_offset_seconds=window.start_offset_seconds,
+        end_offset_seconds=window.end_offset_seconds,
+        packet_count=window.packet_count,
+        values=calculate_feature_vector(
+            window.timestamps,
+            window.sizes,
+            window.directions,
+            config=feature_config,
+        ),
+    )
+
+
 def extract_vnat_pcap_features(
     source: str | Path,
     *,
@@ -42,18 +65,7 @@ def extract_vnat_pcap_features(
         size_policy=size_policy,
         config=window_config,
     ):
-        yield VnatWindowFeature(
-            window_id=window.window_id,
-            capture=window.capture,
-            flow_id=window.flow_id,
-            window_index=window.window_index,
-            start_offset_seconds=window.start_offset_seconds,
-            end_offset_seconds=window.end_offset_seconds,
-            packet_count=window.packet_count,
-            values=calculate_feature_vector(
-                window.timestamps,
-                window.sizes,
-                window.directions,
-                config=feature_config,
-            ),
+        yield calculate_vnat_window_feature(
+            window,
+            feature_config=feature_config,
         )
