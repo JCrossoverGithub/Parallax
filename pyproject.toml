@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.12"
 dependencies = [
     "dpkt==1.9.8",
+    "fastapi>=0.141.1",
     "numpy>=2.5.2",
     "pandas>=3.0.5",
     "pyarrow>=25.0.1",
@@ -17,6 +18,7 @@ dependencies = [
     "scipy>=1.18.0",
     "tables>=3.11.1",
     "torch>=2.11.0",
+    "uvicorn>=0.52.4",
 ]
 
 [project.scripts]
@@ -28,6 +30,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "mypy>=2.3.1",
     "pandas-stubs>=3.0.5.260730",
     "pyarrow-stubs>=20.0.0.20260625",
