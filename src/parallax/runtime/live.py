@@ -53,6 +53,8 @@ class LiveRuntimeSummary:
     event_rate_per_second: float
     mean_processing_latency_ms: float
     max_processing_latency_ms: float
+    finalization_latency_ms: float
+    total_pipeline_processing_ms: float
 
 
 def run_live_packet_predictions(
@@ -96,7 +98,11 @@ def run_live_packet_predictions(
                 handle_event(event)
                 events_emitted += 1
 
-        for event in pipeline.finish():
+        finalization_started_at = selected_clock()
+        final_events = pipeline.finish()
+        finalization_seconds = selected_clock() - finalization_started_at
+
+        for event in final_events:
             handle_event(event)
             events_emitted += 1
 
@@ -113,6 +119,8 @@ def run_live_packet_predictions(
 
     mean_processing_latency_ms = (total_processing_seconds / packets_processed) * 1_000.0
 
+    total_pipeline_processing_seconds = total_processing_seconds + finalization_seconds
+
     return LiveRuntimeSummary(
         packets_processed=packets_processed,
         events_emitted=events_emitted,
@@ -121,4 +129,6 @@ def run_live_packet_predictions(
         event_rate_per_second=event_rate_per_second,
         mean_processing_latency_ms=mean_processing_latency_ms,
         max_processing_latency_ms=max_processing_seconds * 1_000.0,
+        finalization_latency_ms=finalization_seconds * 1_000.0,
+        total_pipeline_processing_ms=(total_pipeline_processing_seconds * 1_000.0),
     )

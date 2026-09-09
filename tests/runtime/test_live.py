@@ -154,6 +154,8 @@ def test_drives_packets_events_and_final_flush() -> None:
                 10.25,
                 10.375,
                 10.625,
+                10.625,
+                10.875,
                 11.0,
             ]
         ),
@@ -167,6 +169,8 @@ def test_drives_packets_events_and_final_flush() -> None:
         event_rate_per_second=2.0,
         mean_processing_latency_ms=187.5,
         max_processing_latency_ms=250.0,
+        finalization_latency_ms=250.0,
+        total_pipeline_processing_ms=625.0,
     )
     assert source.open_calls == 1
     assert source.receive_calls == 2
@@ -220,6 +224,8 @@ def test_zero_elapsed_time_reports_zero_rates() -> None:
                 5.0,
                 5.0,
                 5.0,
+                5.0,
+                5.0,
             ]
         ),
     )
@@ -232,4 +238,6 @@ def test_zero_elapsed_time_reports_zero_rates() -> None:
         event_rate_per_second=0.0,
         mean_processing_latency_ms=0.0,
         max_processing_latency_ms=0.0,
+        finalization_latency_ms=0.0,
+        total_pipeline_processing_ms=0.0,
     )
