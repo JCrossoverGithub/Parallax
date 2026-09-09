@@ -12,6 +12,13 @@ from parallax.operator.history import (
     OperatorHistoryRecord,
     SqliteOperatorHistory,
 )
+from parallax.operator.live import (
+    OperatorLiveConfiguration,
+    OperatorLiveFailure,
+    OperatorLiveSession,
+    OperatorLiveSessionError,
+    OperatorLiveState,
+)
 from parallax.operator.service import (
     OperatorEventBatch,
     OperatorEventCursorError,
@@ -33,6 +40,11 @@ __all__ = [
     "OperatorEventRecord",
     "OperatorHistoryError",
     "OperatorHistoryRecord",
+    "OperatorLiveConfiguration",
+    "OperatorLiveFailure",
+    "OperatorLiveSession",
+    "OperatorLiveSessionError",
+    "OperatorLiveState",
     "OperatorModelIdentity",
     "OperatorReplayConflictError",
     "OperatorReplayNotFoundError",
