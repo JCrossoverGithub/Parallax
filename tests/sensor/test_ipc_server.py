@@ -56,10 +56,12 @@ class FakeSource:
         *,
         open_error: SensorCaptureError | None = None,
         receive_error: SensorCaptureError | None = None,
+        close_error: SensorCaptureError | None = None,
     ) -> None:
         self.results = deque(results)
         self.open_error = open_error
         self.receive_error = receive_error
+        self.close_error = close_error
         self.open_calls = 0
         self.receive_calls = 0
         self.close_calls = 0
@@ -84,6 +86,9 @@ class FakeSource:
 
     def close(self) -> None:
         self.close_calls += 1
+
+        if self.close_error is not None:
+            raise self.close_error
 
 
 class ScriptedConnection:
@@ -921,3 +926,93 @@ def test_server_close_is_idempotent(
     server.close()
 
     assert not server.is_open
+
+
+def test_session_contains_generic_send_os_error() -> None:
+    class GenericSendFailureConnection(
+        ScriptedConnection,
+    ):
+        def sendall(self, data: bytes) -> None:
+            del data
+            self.send_calls += 1
+            raise OSError("client transport failed")
+
+    connection = GenericSendFailureConnection(
+        encode_sensor_ipc_message(SensorStartRequest(interface="eth0"))
+    )
+    source = FakeSource([])
+
+    SensorIpcSession(
+        cast(socket.socket, connection),
+        interface_resolver=_resolve_interface,
+        source_factory=lambda interface: source,
+    ).run()
+
+    assert connection.send_calls == 1
+    assert source.open_calls == 1
+    assert source.receive_calls == 0
+    assert source.close_calls == 1
+
+
+def test_server_survives_capture_close_failure_and_serves_next_client(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "sensor.sock"
+
+    first_source = FakeSource(
+        [],
+        close_error=SensorCaptureError("capture cleanup failed"),
+    )
+    second_source = FakeSource([])
+
+    sources = deque(
+        [
+            first_source,
+            second_source,
+        ]
+    )
+
+    server = UnixSensorServer(
+        path,
+        interface_resolver=lambda name: _interface(),
+        source_factory=lambda interface: sources.popleft(),
+    )
+    server.open()
+
+    try:
+        for expected_source in (
+            first_source,
+            second_source,
+        ):
+            thread = Thread(
+                target=server.serve_one,
+                daemon=True,
+            )
+            thread.start()
+
+            client = socket.socket(
+                socket.AF_UNIX,
+                socket.SOCK_STREAM,
+            )
+
+            try:
+                client.connect(str(path))
+                client.sendall(encode_sensor_ipc_message(SensorStartRequest(interface="eth0")))
+
+                assert _recv_message(client) == (SensorReadyMessage(interface="eth0"))
+
+                client.close()
+                _join(thread)
+
+                assert expected_source.open_calls == 1
+                assert expected_source.close_calls == 1
+                assert server.is_open
+            finally:
+                client.close()
+
+        assert not sources
+    finally:
+        server.close()
+
+    assert not server.is_open
+    assert not path.exists()

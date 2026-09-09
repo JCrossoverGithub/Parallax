@@ -213,7 +213,7 @@ class SensorIpcSession:
     ) -> bool:
         try:
             self._connection.sendall(encode_sensor_ipc_message(message))
-        except (BrokenPipeError, ConnectionResetError):
+        except OSError:
             return False
 
         return True
@@ -309,11 +309,14 @@ class UnixSensorServer:
             raise SensorIpcServerError("could not accept sensor IPC client") from error
 
         with connection:
-            SensorIpcSession(
-                connection,
-                interface_resolver=(self._interface_resolver),
-                source_factory=self._source_factory,
-            ).run()
+            try:
+                SensorIpcSession(
+                    connection,
+                    interface_resolver=(self._interface_resolver),
+                    source_factory=self._source_factory,
+                ).run()
+            except SensorCaptureError:
+                return
 
     def close(self) -> None:
         """Close the listener and remove its Unix-domain socket path."""
