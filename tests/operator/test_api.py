@@ -5,7 +5,10 @@ from fastapi.testclient import TestClient
 
 from parallax.operator import create_operator_app
 from parallax.operator.api import _stream_events
-from parallax.operator.history import OperatorHistoryRecord
+from parallax.operator.history import (
+    OperatorHistoryRecord,
+    OperatorLiveHistoryRecord,
+)
 from parallax.operator.service import (
     OperatorEventBatch,
     OperatorEventCursorError,
@@ -478,6 +481,25 @@ def _history_record(run_id: str = "history-001") -> OperatorHistoryRecord:
     )
 
 
+def _live_history_record(
+    run_id: str = "live-history-001",
+) -> OperatorLiveHistoryRecord:
+    from parallax.operator.live import (
+        OperatorLiveState,
+    )
+
+    return OperatorLiveHistoryRecord(
+        run_id=run_id,
+        interface="eth0",
+        state=OperatorLiveState.COMPLETED,
+        stale_after_seconds=120.0,
+        max_tracked_flows=4_096,
+        event_count=1,
+        failure_code=None,
+        failure_message=None,
+    )
+
+
 class FakeHistoryService:
     def list_history(
         self,
@@ -514,6 +536,54 @@ class FakeHistoryService:
 
         if run_id == "missing":
             raise OperatorReplayNotFoundError("persisted replay does not exist")
+
+        return (
+            {
+                "schema_version": ("parallax-runtime-prediction-1"),
+                "run_id": run_id,
+            },
+        )
+
+    def list_live_history(
+        self,
+        *,
+        limit: int = 100,
+    ) -> tuple[
+        OperatorLiveHistoryRecord,
+        ...,
+    ]:
+        from parallax.operator.service import (
+            OperatorServiceError,
+        )
+
+        if limit < 1:
+            raise OperatorServiceError("live history list limit must be positive")
+
+        return (_live_history_record(),)
+
+    def get_history_live(
+        self,
+        run_id: str,
+    ) -> OperatorLiveHistoryRecord:
+        from parallax.operator.service import (
+            OperatorLiveNotFoundError,
+        )
+
+        if run_id == "missing":
+            raise OperatorLiveNotFoundError("persisted live session does not exist")
+
+        return _live_history_record(run_id)
+
+    def get_history_live_events(
+        self,
+        run_id: str,
+    ) -> tuple[dict[str, object], ...]:
+        from parallax.operator.service import (
+            OperatorLiveNotFoundError,
+        )
+
+        if run_id == "missing":
+            raise OperatorLiveNotFoundError("persisted live session does not exist")
 
         return (
             {
@@ -590,3 +660,76 @@ def test_missing_persisted_events_return_not_found() -> None:
     response = _history_client().get("/api/v1/history/missing/events")
 
     assert response.status_code == 404
+
+
+def test_lists_persisted_live_history() -> None:
+    response = _history_client().get("/api/v1/history/live?limit=10")
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert len(payload["live_sessions"]) == 1
+
+    session = payload["live_sessions"][0]
+
+    assert session["run_id"] == "live-history-001"
+    assert session["state"] == "completed"
+    assert session["configuration"] == {
+        "interface": "eth0",
+        "stale_after_seconds": 120.0,
+        "max_tracked_flows": 4_096,
+    }
+    assert session["event_count"] == 1
+
+
+def test_live_history_list_rejects_invalid_limit() -> None:
+    response = _history_client().get("/api/v1/history/live?limit=0")
+
+    assert response.status_code == 400
+
+    assert response.json() == {"detail": ("live history list limit must be positive")}
+
+
+def test_reads_persisted_live_summary() -> None:
+    response = _history_client().get("/api/v1/history/live/live-002")
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["run_id"] == "live-002"
+    assert payload["state"] == "completed"
+    assert payload["configuration"]["interface"] == "eth0"
+
+
+def test_missing_persisted_live_returns_not_found() -> None:
+    response = _history_client().get("/api/v1/history/live/missing")
+
+    assert response.status_code == 404
+
+    assert response.json() == {"detail": ("persisted live session does not exist")}
+
+
+def test_reads_persisted_live_prediction_events() -> None:
+    response = _history_client().get("/api/v1/history/live/live-003/events")
+
+    assert response.status_code == 200
+
+    assert response.json() == {
+        "run_id": "live-003",
+        "events": [
+            {
+                "schema_version": ("parallax-runtime-prediction-1"),
+                "run_id": "live-003",
+            }
+        ],
+    }
+
+
+def test_missing_persisted_live_events_return_not_found() -> None:
+    response = _history_client().get("/api/v1/history/live/missing/events")
+
+    assert response.status_code == 404
+
+    assert response.json() == {"detail": ("persisted live session does not exist")}

@@ -414,6 +414,49 @@ def create_operator_app(service: OperatorReplayService) -> FastAPI:
 
         return {"replays": [record.as_dict() for record in records]}
 
+    @app.get("/api/v1/history/live")
+    def list_live_history(
+        limit: int = 100,
+    ) -> dict[str, object]:
+        try:
+            records = service.list_live_history(limit=limit)
+        except OperatorServiceError as error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(error),
+            ) from error
+
+        return {"live_sessions": [record.as_dict() for record in records]}
+
+    @app.get("/api/v1/history/live/{run_id}")
+    def get_history_live(
+        run_id: str,
+    ) -> dict[str, object]:
+        try:
+            return service.get_history_live(run_id).as_dict()
+        except OperatorLiveNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(error),
+            ) from error
+
+    @app.get("/api/v1/history/live/{run_id}/events")
+    def get_history_live_events(
+        run_id: str,
+    ) -> dict[str, object]:
+        try:
+            events = service.get_history_live_events(run_id)
+        except OperatorLiveNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(error),
+            ) from error
+
+        return {
+            "run_id": run_id,
+            "events": list(events),
+        }
+
     @app.get("/api/v1/history/{run_id}")
     def get_history_replay(
         run_id: str,
