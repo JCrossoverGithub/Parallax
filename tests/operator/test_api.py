@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from parallax.operator import create_operator_app
 from parallax.operator.api import _stream_events
+from parallax.operator.history import OperatorHistoryRecord
 from parallax.operator.service import (
     OperatorEventBatch,
     OperatorEventCursorError,
@@ -461,7 +462,7 @@ def test_stream_generator_reports_cursor_loss() -> None:
     ]
 
 
-def _history_record(run_id: str = "history-001"):
+def _history_record(run_id: str = "history-001") -> OperatorHistoryRecord:
     from parallax.operator.history import OperatorHistoryRecord
     from parallax.replay import ReplayState
 
@@ -478,7 +479,11 @@ def _history_record(run_id: str = "history-001"):
 
 
 class FakeHistoryService:
-    def list_history(self, *, limit: int = 100):
+    def list_history(
+        self,
+        *,
+        limit: int = 100,
+    ) -> tuple[OperatorHistoryRecord, ...]:
         from parallax.operator.service import OperatorServiceError
 
         if limit < 1:
@@ -486,7 +491,10 @@ class FakeHistoryService:
 
         return (_history_record(),)
 
-    def get_history_replay(self, run_id: str):
+    def get_history_replay(
+        self,
+        run_id: str,
+    ) -> OperatorHistoryRecord:
         from parallax.operator.service import (
             OperatorReplayNotFoundError,
         )
@@ -515,7 +523,7 @@ class FakeHistoryService:
         )
 
 
-def _history_client():
+def _history_client() -> TestClient:
     from typing import cast
 
     from fastapi.testclient import TestClient
