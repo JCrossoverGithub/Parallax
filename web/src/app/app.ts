@@ -179,6 +179,40 @@ export class App implements OnDestroy {
     return this.replay()?.source_id ?? '—';
   });
 
+  readonly currentFailure = computed(() => {
+    if (this.workspace() === 'live') {
+      const session = this.live();
+
+      if (session === null) {
+        return null;
+      }
+
+      if (session.failure !== null) {
+        return session.failure;
+      }
+
+      if (session.state !== 'failed') {
+        return null;
+      }
+
+      return this.liveHistory().find((item) => item.run_id === session.run_id)?.failure ?? null;
+    }
+
+    if (this.workspace() === 'history') {
+      if (this.selectedHistoryKind() === 'live') {
+        return this.live()?.failure ?? null;
+      }
+
+      if (this.selectedHistoryKind() === 'replay') {
+        return this.replay()?.failure ?? null;
+      }
+
+      return null;
+    }
+
+    return this.replay()?.failure ?? null;
+  });
+
   readonly workspaceTitle = computed(() => {
     switch (this.workspace()) {
       case 'live':

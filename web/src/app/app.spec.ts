@@ -78,6 +78,15 @@ const LIVE_COMPLETED: LiveSessionSnapshot = {
   state: 'completed',
 };
 
+const LIVE_FAILED: LiveSessionSnapshot = {
+  ...LIVE_STARTING,
+  state: 'failed',
+  failure: {
+    code: 'sensor_unavailable',
+    message: 'could not open sensor IPC packet source',
+  },
+};
+
 const PREDICTION: RuntimePredictionEvent = {
   schema_version: 'parallax-runtime-prediction-1',
   run_id: 'run-001',
@@ -901,5 +910,133 @@ describe('App', () => {
     vi.advanceTimersByTime(2000);
 
     expect(api.getLive.mock.calls.length).toBe(calls);
+  });
+});
+
+describe('structured session failure visibility', () => {
+  let fixture: ComponentFixture<App>;
+  let component: App;
+  let api: FakeOperatorApi;
+
+  beforeEach(async () => {
+    vi.useFakeTimers();
+
+    api = new FakeOperatorApi();
+
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        {
+          provide: OperatorApi,
+          useValue: api,
+        },
+      ],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(App);
+    component = fixture.componentInstance;
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    vi.useRealTimers();
+  });
+
+  it('renders an active live failure code and message', () => {
+    component.workspace.set('live');
+    component.live.set(LIVE_FAILED);
+
+    fixture.detectChanges();
+
+    expect(component.currentFailure()).toEqual({
+      code: 'sensor_unavailable',
+      message: 'could not open sensor IPC packet source',
+    });
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const banner = compiled.querySelector('.session-failure-banner');
+
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toContain('sensor_unavailable');
+    expect(banner?.textContent).toContain('could not open sensor IPC packet source');
+  });
+
+  it('recovers failure details from durable live history after terminal SSE state', () => {
+    component.workspace.set('live');
+
+    component.live.set({
+      ...LIVE_FAILED,
+      failure: null,
+    });
+
+    component.liveHistory.set([
+      {
+        ...LIVE_FAILED,
+        event_count: 0,
+      },
+    ]);
+
+    expect(component.currentFailure()).toEqual({
+      code: 'sensor_unavailable',
+      message: 'could not open sensor IPC packet source',
+    });
+  });
+
+  it('renders a persisted live failure when reopened from history', () => {
+    api.getHistoryLive.mockReturnValue(
+      of({
+        ...LIVE_FAILED,
+        run_id: 'live-history-failed',
+        event_count: 0,
+        failure: {
+          code: 'capture_error',
+          message: 'capture permission denied',
+        },
+      }),
+    );
+
+    api.getHistoryLiveEvents.mockReturnValue(
+      of({
+        run_id: 'live-history-failed',
+        events: [],
+      }),
+    );
+
+    component.openLiveHistory('live-history-failed');
+
+    fixture.detectChanges();
+
+    expect(component.workspace()).toBe('history');
+    expect(component.selectedHistoryKind()).toBe('live');
+
+    expect(component.currentFailure()).toEqual({
+      code: 'capture_error',
+      message: 'capture permission denied',
+    });
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const banner = compiled.querySelector('.session-failure-banner');
+
+    expect(banner?.textContent).toContain('capture_error');
+    expect(banner?.textContent).toContain('capture permission denied');
+  });
+
+  it('shows failed live-session codes in the History list', () => {
+    component.workspace.set('history');
+
+    component.liveHistory.set([
+      {
+        ...LIVE_FAILED,
+        run_id: 'live-history-failed',
+        event_count: 0,
+      },
+    ]);
+
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const historyPanel = compiled.querySelector('.history-panel');
+
+    expect(historyPanel?.textContent).toContain('sensor_unavailable');
   });
 });

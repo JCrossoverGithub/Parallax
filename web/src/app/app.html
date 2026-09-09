@@ -108,6 +108,13 @@
       </div>
     }
 
+    @if (currentFailure(); as failure) {
+      <div class="error-banner session-failure-banner" role="alert">
+        <strong>{{ failure.code }}</strong>
+        <span>{{ failure.message }}</span>
+      </div>
+    }
+
     <main>
       @if (workspace() === 'live') {
         <section class="command-panel">
@@ -290,7 +297,9 @@
                       events
                     </span>
 
-                    <span class="history-stat"> LIVE </span>
+                    <span class="history-stat">
+                      {{ item.failure?.code ?? 'LIVE' }}
+                    </span>
                   </button>
                 }
               </div>
