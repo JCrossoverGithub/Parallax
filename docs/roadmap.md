@@ -2,8 +2,8 @@
 
 ## Current status
 
-Milestones 1 through 5 are complete. Milestone 6 has completed its operational
-security/privacy review and is awaiting final acceptance closure.
+Milestones 1 through 6 are complete. Milestone 7 portfolio-release work is
+now in progress.
 
 The complete live packet-to-browser path has been validated on JPCMAIN. Live
 capture now runs behind a dedicated AF_UNIX metadata boundary in a separate

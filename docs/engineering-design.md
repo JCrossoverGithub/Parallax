@@ -89,8 +89,9 @@ maximum absolute feature difference `0.0`.
 The accepted model and OOD calibration remain frozen. Live observations do not
 constitute new accuracy or OOD-generalization evidence.
 
-The final Milestone 6 operational security/privacy review is complete.
-Remaining work is limited to milestone acceptance/documentation closure.
+The final Milestone 6 operational security/privacy review and acceptance
+closure are complete. Milestone 7 portfolio release is now the active project
+milestone.
 
 ## 2. Background
 
@@ -1005,7 +1006,7 @@ The following initial decisions should be recorded as individual ADRs when the r
 | OQ-006 | Resolved: selected SSH and VoIP raw PCAPs reproduce offline flow, window, and 129-feature records exactly under the release-compatible contracts. | Milestone 3 |
 | OQ-007 | Should runtime feature vectors be retained for public demo sessions? | Milestone 4 security review |
 | OQ-008 | Resolved: SSE is used for one-way ordered prediction delivery while replay controls remain REST operations. | Milestone 5 |
-| OQ-009 | What Windows capture mechanism provides the cleanest least-privilege boundary? | Milestone 6 |
+| OQ-009 | Deferred: native Windows capture is outside the accepted Linux/WSL live-sensor scope; the current implementation uses a least-privilege AF_PACKET sensor under WSL/Linux. | Future platform work |
 | OQ-010 | Which metrics and views materially help an analyst rather than merely decorating the dashboard? | Milestone 5 usability review |
 
 ## 23. Known Risks
