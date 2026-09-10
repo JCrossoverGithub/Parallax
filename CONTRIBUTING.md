@@ -14,11 +14,30 @@ and development dependencies with `uv add --dev` so `pyproject.toml` and `uv.loc
 Before committing, run:
 
 ```bash
+uv lock --check
+
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked mypy src tests
-uv run --locked pytest --cov=parallax --cov-report=term-missing --cov-fail-under=100
+uv run --locked pytest \
+  --cov=parallax \
+  --cov-report=term-missing \
+  --cov-fail-under=100
+
 uv build --no-sources
+
+cd web
+npm ci
+npm test -- --watch=false
+npm run build
+cd ..
+
+bash -n scripts/live-soak-acceptance.sh
+
+uv run python -m json.tool \
+  docs/evidence/live-soak-2026-09-09.json \
+  >/dev/null
+
 git diff --check
 ```
 
