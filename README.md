@@ -33,6 +33,39 @@ Key engineering properties include:
 - real privilege-separated live acceptance testing;
 - a documented security/privacy threat model.
 
+## Operator console
+
+Parallax includes a real-time Angular operations console for live monitoring,
+prediction investigation, replay, and persisted session history.
+
+### Live network monitoring
+
+![Parallax Live Sensor showing an active metadata-only capture session and real-time prediction feed](docs/assets/screenshots/parallax-live-sensor.png)
+
+The Live Sensor workspace starts and stops supported interfaces, reports
+runtime/session state, streams prediction events over SSE, and presents
+closed-set classification and OOD information separately.
+
+### Prediction investigation
+
+![Parallax prediction investigation view showing classification, uncertainty, observation-window identity, and frozen model provenance](docs/assets/screenshots/parallax-prediction-investigation.png)
+
+Every prediction can be inspected beyond its headline class. The investigation
+view exposes the full five-class distribution, raw confidence, OOD score,
+relative-Mahalanobis value, observation-window identity, packet count, timing,
+and checksum-bound model/calibration provenance.
+
+### Durable session history
+
+![Parallax session history showing a completed live run with persisted predictions restored](docs/assets/screenshots/parallax-session-history.png)
+
+Completed live and replay sessions remain available through restart-safe
+SQLite history. Historical prediction events can be reopened and investigated
+without reviving the original capture session.
+
+For a reproducible walkthrough, see the
+[Portfolio Demo Runbook](docs/demo-runbook.md).
+
 ## Architecture
 
 ```mermaid
@@ -204,6 +237,7 @@ Any new OOD-generalization claim requires a separate preregistered experiment.
 
 | Document | Purpose |
 | --- | --- |
+| [Portfolio Demo Runbook](docs/demo-runbook.md) | Reproducible live product walkthrough |
 | [Milestone 6 Acceptance](docs/milestone-6-acceptance.md) | Final live-system acceptance record |
 | [Performance and Soak Validation](docs/performance-report.md) | Load, memory, persistence, and restart evidence |
 | [Threat Model and Security Review](docs/threat-model.md) | Trust boundaries, privacy findings, and residual risk |
