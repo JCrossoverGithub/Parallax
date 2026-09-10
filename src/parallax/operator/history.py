@@ -1,6 +1,7 @@
 """Durable local history for Parallax operator replay sessions."""
 
 import json
+import os
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -92,8 +93,29 @@ class SqliteOperatorHistory:
         if self._path.exists() and self._path.is_dir():
             raise OperatorHistoryError("operator history path must be a database file")
 
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+            mode=0o700,
+        )
+        self._prepare_database_file()
         self._initialize()
+
+    def _prepare_database_file(self) -> None:
+        """Create or tighten the history database as owner-only state."""
+        descriptor = os.open(
+            self._path,
+            os.O_RDWR | os.O_CREAT,
+            0o600,
+        )
+
+        try:
+            os.fchmod(
+                descriptor,
+                0o600,
+            )
+        finally:
+            os.close(descriptor)
 
     def save_replay(
         self,

@@ -491,3 +491,77 @@ def test_adds_live_schema_to_existing_replay_database(
     history.save_live_session(_live_record())
 
     assert history.get_live_session("live-001") == _live_record()
+
+
+def test_creates_history_database_with_owner_only_permissions(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "operator.sqlite3"
+
+    SqliteOperatorHistory(path)
+
+    assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_tightens_existing_history_database_permissions(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "operator.sqlite3"
+
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE legacy_state (
+                value TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO legacy_state (value)
+            VALUES ('preserved')
+            """
+        )
+
+    path.chmod(0o644)
+
+    SqliteOperatorHistory(path)
+
+    assert path.stat().st_mode & 0o777 == 0o600
+
+    with sqlite3.connect(path) as connection:
+        value = connection.execute(
+            """
+            SELECT value
+            FROM legacy_state
+            """
+        ).fetchone()
+
+    assert value == ("preserved",)
+
+
+def test_creates_new_history_parent_as_owner_only(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "private-history"
+    path = parent / "operator.sqlite3"
+
+    SqliteOperatorHistory(path)
+
+    assert parent.stat().st_mode & 0o777 == 0o700
+    assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_does_not_change_existing_history_parent_permissions(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "shared-state"
+    parent.mkdir()
+    parent.chmod(0o755)
+
+    path = parent / "operator.sqlite3"
+
+    SqliteOperatorHistory(path)
+
+    assert parent.stat().st_mode & 0o777 == 0o755
+    assert path.stat().st_mode & 0o777 == 0o600
