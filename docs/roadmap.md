@@ -2,8 +2,8 @@
 
 ## Current status
 
-Milestones 1 through 5 are complete. Milestone 6 is in late-stage operational
-hardening.
+Milestones 1 through 5 are complete. Milestone 6 is in final operational
+security/privacy acceptance.
 
 The complete live packet-to-browser path has been validated on JPCMAIN. Live
 capture now runs behind a dedicated AF_UNIX metadata boundary in a separate
@@ -17,7 +17,7 @@ unprivileged.
 | 3. Raw-PCAP parity | Complete | Metadata-only parsing, bidirectional flows, PCAP windows, and exact selected-capture feature parity |
 | 4. Replayable runtime | Complete | Controlled replay through incremental features, frozen inference, and runtime prediction events |
 | 5. Operator layer | Complete | REST controls, SSE prediction streaming, Angular dashboard, durable replay history, and restart-safe history inspection |
-| 6. Live sensor and hardening | In progress | Live capture, operator live mode, observability, resource bounds, browser recovery, and least-privilege isolation implemented; final hardening remains |
+| 6. Live sensor and hardening | In progress | Live capture, durable history, structured failures, overload behavior, least-privilege isolation, and sustained-load validation implemented; final security/privacy acceptance remains |
 
 ## Milestone 4 - Replayable runtime
 
@@ -242,28 +242,38 @@ The following Milestone 6 capabilities are implemented and validated:
 - dedicated `parallax-sensor` executable;
 - hardened systemd service identity and runtime socket permissions;
 - CAP_NET_RAW-only sensor execution;
-- successful live operation with an unprivileged FastAPI process.
+- successful live operation with an unprivileged FastAPI process;
+- durable SQLite persistence and read-only inspection of completed live sessions;
+- restart-safe live-history recovery without reviving completed sessions as active;
+- structured sensor, IPC, capture, and execution failure propagation;
+- explicit terminal `flow_capacity_exceeded` behavior rather than silent active-flow eviction;
+- per-session containment of capture-cleanup and client transport failures so one bad sensor
+  session does not terminate the shared listener;
+- deterministic synthetic steady, stale-churn, and capacity soak profiles;
+- three-minute real privilege-separated live soak with SSE, persistence, process-memory sampling,
+  clean finalization, and operator-restart history validation.
 
 ### Remaining hardening
 
 Milestone 6 is not yet closed.
 
-Remaining work is:
+Durable live history, structured sensor/capture failures, explicit capacity
+behavior, sensor-session containment, and sustained-load validation are now
+complete.
 
-1. Persist completed live sessions and prediction events durably, with
-   read-only historical inspection similar to replay history.
-2. Preserve structured sensor failures such as interface, permission, capture,
-   protocol, disconnect, and capacity errors through the operator/API layer.
-3. Define explicit operator-visible overload behavior where live capacity
-   limits are reached.
-4. Run sustained-load and soak validation and record packet rate, prediction
-   latency, tracked-flow state, capacity behavior, and process memory.
-5. Complete the final operational security/privacy review and update the
-   milestone acceptance record.
+Remaining work is the final operational security/privacy review followed by
+the Milestone 6 acceptance/documentation closure.
+
+The review must reconfirm the metadata-only boundary, privilege isolation,
+failure containment, persistence exclusions, and absence of packet payloads
+from ordinary logs and operational history.
 
 Live capture does not change the accepted VNAT experiment, authorize model
 retuning, or establish accuracy/OOD performance on arbitrary real-world
 traffic.
+
+Detailed load and memory evidence is recorded in
+[Performance and Soak Validation](performance-report.md).
 
 ## Experimental integrity
 

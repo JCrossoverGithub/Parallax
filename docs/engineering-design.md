@@ -5,17 +5,18 @@
 | Field | Value |
 | --- | --- |
 | Project name | Parallax |
-| Document version | 0.6 |
-| Status | Implemented through live operator mode and least-privilege sensor isolation; final Milestone 6 hardening in progress |
+| Document version | 0.7 |
+| Status | Implemented through sustained live-load validation; final Milestone 6 security/privacy acceptance in progress |
 | Date | 2026-09-09 |
 | Owner | Josh Schultz |
 | Intended repository | `Parallax` |
 | Initial development environment | Windows 11 with WSL 2 Ubuntu 24.04 |
 
 > This is a living engineering design. Replay, runtime, operator-service,
-> dashboard, live sensing, bounded live state, and least-privilege capture
-> behavior are documented as implemented. Remaining Milestone 6 items are
-> identified explicitly rather than described as already complete.
+> dashboard, live sensing, bounded live state, durable live history,
+> structured failure behavior, sustained-load validation, and least-privilege
+> capture are documented as implemented. Final Milestone 6 security/privacy
+> acceptance remains explicitly open.
 
 ## 1. Executive Summary
 
@@ -33,7 +34,8 @@ This is not intended to be presented as a production intrusion-detection system 
 ### 1.1 Current implementation checkpoint
 
 Milestones 1 through 5 are complete. Milestone 6 has established the full live
-packet-to-browser path and is now in final operational hardening.
+packet-to-browser path and completed its sustained-load hardening. Final
+operational security/privacy acceptance remains.
 
 The implemented system supports:
 
@@ -67,7 +69,17 @@ The implemented system supports:
 - CAP_NET_RAW isolation to the sensor process rather than the API or Python
   interpreter;
 - successful live operation with the FastAPI/operator process running
-  unprivileged.
+  unprivileged;
+- durable SQLite live-session history and restart-safe historical inspection;
+- structured live sensor, IPC, capture, execution, and capacity failures;
+- explicit terminal flow-capacity behavior rather than silent active-flow
+  eviction;
+- per-session sensor failure containment around capture cleanup and client
+  transport failures;
+- deterministic synthetic steady, stale-churn, and capacity soak validation;
+- three-minute real privilege-separated live-load validation with process
+  memory sampling, SSE delivery, durable persistence, clean finalization, and
+  operator-restart history recovery.
 
 Selected acceptance captures demonstrated exact batch/runtime feature parity:
 five eligible SSH windows and 45 eligible VoIP windows matched exactly with
@@ -76,10 +88,8 @@ maximum absolute feature difference `0.0`.
 The accepted model and OOD calibration remain frozen. Live observations do not
 constitute new accuracy or OOD-generalization evidence.
 
-Remaining Milestone 6 work is limited to durable live-session history,
-end-to-end structured sensor failures, explicit overload behavior,
-sustained-load/soak measurements, and final operational security/privacy
-acceptance.
+Remaining Milestone 6 work is limited to the final operational
+security/privacy review and milestone acceptance/documentation closure.
 
 ## 2. Background
 
@@ -1019,14 +1029,13 @@ The final as-built report should clearly separate measured results from planned 
 
 ## 25. Immediate Next Step
 
-Begin Milestone 6 with the smallest live-sensor slice: identify the JPCMAIN/WSL capture boundary,
-define a live packet-metadata source compatible with the existing incremental runtime, and route
-live metadata into the already-tested flow, window, feature, inference, SSE, persistence, and
-dashboard path.
+Complete the final Milestone 6 operational security/privacy review. Reconfirm the metadata-only
+sensor boundary, CAP_NET_RAW isolation, Unix-socket permissions, per-session failure containment,
+persistence exclusions, and absence of packet payloads from ordinary logs and operational history.
 
-Do not duplicate the feature pipeline or modify the accepted frozen model/calibration to accommodate
-live traffic. Live behavior must be measured separately and must not be presented as new VNAT
-accuracy or OOD evidence.
+If the security/privacy review and repository-wide quality gate remain clean, update the final
+Milestone 6 acceptance record and close the milestone. Do not modify the accepted frozen
+model/calibration or reinterpret live traffic as new VNAT accuracy or OOD evidence.
 
 ---
 
@@ -1034,6 +1043,8 @@ accuracy or OOD evidence.
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.7 | 2026-09-09 | Recorded deterministic synthetic soak results, three-minute real privilege-separated live-load validation, restart-safe live-history acceptance, and moved Milestone 6 to final security/privacy review. |
+| 0.6 | 2026-09-09 | Added least-privilege live sensing, durable live history, structured live failures, explicit capacity behavior, and sensor-session containment. |
 | 0.1 | 2026-08-18 | Initial project definition, architecture, requirements, evaluation plan, security boundaries, milestones, and acceptance criteria |
 | 0.2 | 2026-08-18 | Adopted Parallax as the permanent project and repository name |
 | 0.5 | 2026-09-09 | Completed the operator service, REST/SSE controls, Angular dashboard, SQLite replay history, and restart-persistence acceptance; Milestone 6 live sensing is next. |

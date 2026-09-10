@@ -1,0 +1,114 @@
+{
+  "accepted_artifacts": {
+    "calibration_artifact_sha256": "af1d066ea2d96943c873b75e897ca4c7d910c79813a61b605eec8c7ec3c1fd9d",
+    "feature_artifact_sha256": "611dcb63c66e04f461fb7500f96762c1722a06fbdde700dc5aa42ae021e39f16",
+    "model_bundle_sha256": "1c61678611043a7f70f02836ae23bbc7c1abf683b015e23ebafed4d941ecdef7",
+    "split_manifest_sha256": "a1aeee5f118c1e3bd57aa7232eb009634c098b9025571786614798953ebd8a0f"
+  },
+  "environment": {
+    "host": "JPCMAIN",
+    "interface": "eth0",
+    "platform": "Windows 11 with WSL 2 Ubuntu 24.04"
+  },
+  "interpretation_boundary": {
+    "accuracy_evidence": false,
+    "maximum_throughput_claim": false,
+    "ood_generalization_evidence": false,
+    "packet_payload_persistence": false,
+    "real_workload_packet_count_note": "The recorded 28704 value is generated UDP datagrams, not an assertion that the sensor processed exactly 28704 packets.",
+    "synthetic_model_scoring": false
+  },
+  "real_live_soak": {
+    "duration_seconds": 180.094985,
+    "event_delivery": {
+      "live_events_before_stop": 64,
+      "persisted_events_after_stop": 80,
+      "sse_prediction_events": 80,
+      "sse_terminal_events": 1
+    },
+    "memory": {
+      "operator_baseline_rss_kib": 422992,
+      "operator_max_sample_rss_kib": 429028,
+      "operator_sample_rss_growth_kib": 6036,
+      "sensor_baseline_rss_kib": 158272,
+      "sensor_max_sample_rss_kib": 158272,
+      "sensor_sample_rss_growth_kib": 0
+    },
+    "restart_persistence": {
+      "active_live_session_after_operator_restart": false,
+      "historical_event_count_after_restart": 80,
+      "historical_state_after_restart": "completed",
+      "operator_process_identity_changed": true,
+      "sensor_process_survived_operator_restart": true
+    },
+    "run_id": "02376e82-bf63-42b9-a456-491c8179ba7d",
+    "security": {
+      "operator_ambient_capabilities": "none",
+      "operator_effective_capabilities": "none",
+      "sensor_effective_capabilities": "CAP_NET_RAW only"
+    },
+    "session": {
+      "failure": null,
+      "final_state": "completed"
+    },
+    "traffic_generator": {
+      "configured_flows": 16,
+      "generated_datagrams": 28704,
+      "generator_rate_datagrams_per_second": 159.38,
+      "protocol": "UDP"
+    }
+  },
+  "recorded_on": "2026-09-09",
+  "reference_commits": {
+    "sensor_session_containment": "9176ee4",
+    "synthetic_soak_harness": "e0c01bb"
+  },
+  "schema": "parallax-live-soak-acceptance-1",
+  "synthetic_soak": {
+    "capacity": {
+      "capacity_rejections": 1,
+      "configured_flows": 4097,
+      "configured_packets": 4097,
+      "flows_created": 4096,
+      "max_tracked_flows": 4096,
+      "outcome": "capacity_exceeded",
+      "packets_accepted": 4096,
+      "source_packets_emitted": 4097,
+      "stale_evictions": 0,
+      "tracked_flow_count": 4096,
+      "wall_elapsed_seconds": 0.192144853,
+      "peak_rss_growth_kib": 2688
+    },
+    "stale_churn": {
+      "capacity_rejections": 0,
+      "configured_flows": 1024,
+      "flows_created": 100000,
+      "max_processing_latency_ms": 67.655142,
+      "mean_processing_latency_ms": 0.014211689,
+      "outcome": "completed",
+      "packet_rate_per_second": 64102.5169,
+      "packets_processed": 100000,
+      "peak_rss_growth_kib": 768,
+      "peak_tracked_flow_count": 1024,
+      "stale_evictions": 99328,
+      "tracked_flow_count": 672,
+      "wall_elapsed_seconds": 1.560012931
+    },
+    "steady": {
+      "capacity_rejections": 0,
+      "configured_flows": 1024,
+      "finalization_latency_ms": 0.3235559998,
+      "flows_created": 1024,
+      "max_processing_latency_ms": 0.736028003,
+      "mean_processing_latency_ms": 0.022605506,
+      "outcome": "completed",
+      "packet_rate_per_second": 41815.0105,
+      "packets_processed": 100000,
+      "peak_rss_growth_kib": 1344,
+      "peak_tracked_flow_count": 1024,
+      "stale_evictions": 0,
+      "tracked_flow_count": 1024,
+      "wall_elapsed_seconds": 2.391498058
+    }
+  }
+}
