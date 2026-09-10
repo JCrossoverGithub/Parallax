@@ -1,65 +1,219 @@
 # Parallax
 
-Parallax is an uncertainty-aware network traffic monitoring system. It is being built to
-classify broad application activity from observable encrypted traffic metadata such as packet
-timing, size, and direction without decrypting or persisting packet payloads.
+**Privacy-conscious network traffic classification with uncertainty-aware inference, live sensing, and a real-time operator console.**
 
-## Project status
+Parallax is an end-to-end network traffic intelligence system that classifies broad application activity from observable packet metadata such as timing, size, and direction without decrypting or persisting packet payloads.
 
-Parallax is in active development. The repository now includes a typed VNAT release contract,
-fail-closed source checksum verification, structural inspection for the raw HDF5 dataset,
-deterministic capture-aligned window extraction, reproduction of the published 129-feature
-representation, versioned Parquet exports, deterministic capture-grouped partitioning, strict
-quality gates, a manifest-bound modeling loader, deterministic reference baselines, and a frozen
-prototypical embedding model with relative-Mahalanobis OOD calibration. The candidate completed
-one checksum-bound test evaluation after its model, calibration, thresholds, and reporting policy
-were frozen. Raw-PCAP ingestion, deterministic bidirectional flow reconstruction, incremental
-capture-aligned windowing, shared runtime feature construction, controlled replay, checksum-bound
-runtime inference, the operator REST/SSE service, Angular operations dashboard, and durable SQLite
-replay history are implemented. Selected VNAT SSH and VoIP captures have exact batch/runtime feature
-parity, and the 45-window VoIP operator run has been restored successfully across an API-process
-restart.
+It began as a reproducibility-focused machine-learning project around MIT Lincoln Laboratory's VNAT dataset and evolved into a complete runtime system: deterministic raw-PCAP processing, leakage-resistant data partitions, a frozen uncertainty-aware classifier, replay, live Linux capture, least-privilege sensor isolation, REST/SSE services, an Angular operations console, durable history, sustained-load validation, and an as-built threat model.
 
-Milestones 1 through 6 are complete. Milestone 7 portfolio-release work is next:
+> **Project status:** Milestones 1 through 6 are complete. Milestone 7 is preparing the repository for its first portfolio release.
 
-```text
-local interface -> CAP_NET_RAW sensor -> PacketMetadata -> AF_UNIX IPC
-                -> unprivileged operator -> flows -> windows -> features
-                -> frozen model + OOD calibration -> RuntimePredictionEvent
-                -> SSE -> Angular operations console
+## What Parallax demonstrates
+
+Parallax is intentionally more than a notebook classifier.
+
+The project demonstrates how an ML experiment can be carried through data engineering, model evaluation, runtime parity, systems integration, security boundaries, observability, failure handling, and live operation while preserving scientific and privacy constraints.
+
+Key engineering properties include:
+
+- deterministic capture-grouped train/validation/calibration/test partitions;
+- a versioned 129-feature encrypted-traffic representation;
+- conventional baselines and a frozen prototypical classifier;
+- independent relative-Mahalanobis OOD scoring;
+- exact selected-capture offline/runtime feature parity;
+- replay and live traffic through the same feature/inference path;
+- a dedicated CAP_NET_RAW sensor instead of privileged API execution;
+- bounded metadata-only AF_UNIX sensor IPC;
+- FastAPI REST/SSE operator services;
+- an Angular operations console with live recovery and history;
+- bounded flow state and explicit capacity failures;
+- restart-safe SQLite operational history;
+- 100% Python statement/branch coverage;
+- deterministic synthetic soak testing;
+- real privilege-separated live acceptance testing;
+- a documented security/privacy threat model.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    A["Local Network Interface"] --> B["parallax-sensor<br/>AF_PACKET + CAP_NET_RAW"]
+    B --> C["Ethernet / IPv4 Decoder"]
+    C --> D["PacketMetadata"]
+    D --> E["AF_UNIX IPC<br/>metadata only"]
+
+    E --> F["Unprivileged Operator"]
+    F --> G["Bidirectional Flow Tracking"]
+    G --> H["Observation Windows"]
+    H --> I["129-Feature Runtime"]
+    I --> J["Frozen Prototype Classifier"]
+    I --> K["Frozen OOD Calibration"]
+
+    J --> L["RuntimePredictionEvent"]
+    K --> L
+
+    L --> M["REST / SSE"]
+    M --> N["Angular Operations Console"]
+
+    L --> O["SQLite History<br/>owner-only"]
 ```
 
-Live mode includes explicit start/stop lifecycle, bounded runtime flow state, processing
-instrumentation, browser active-session recovery, durable SQLite live history, structured
-sensor/capacity failures, sustained-load validation, and a dedicated systemd sensor service. Raw
-capture remains isolated from FastAPI and the dashboard.
+The raw-capture privilege boundary is deliberately narrow:
 
-Milestone 6 acceptance is recorded in
-[Milestone 6 Acceptance](docs/milestone-6-acceptance.md). Measured
-runtime/resource evidence is documented in
-[Performance and Soak Validation](docs/performance-report.md), and the as-built
-security review is documented in
-[Threat Model and Security Review](docs/threat-model.md).
+```text
+PRIVILEGED
+local interface -> AF_PACKET -> decode -> PacketMetadata
+                                      |
+                                      v
+                              AF_UNIX boundary
+                                      |
+UNPRIVILEGED                          v
+operator -> flows -> windows -> features -> model/OOD -> REST/SSE -> browser
+```
 
-Live capture remains separate from the accepted VNAT experiment and does not authorize model
-retuning or stronger accuracy/OOD claims.
+Raw Ethernet frames remain inside the sensor process. Packet payload bytes do not cross into the operator process or ordinary operational history.
 
-OOD means out of distribution. It is reported independently from ordinary predictive
-confidence so unfamiliar traffic is not silently presented as a trustworthy known category.
+## Validated results
 
-## Initial scope
+### Runtime parity
 
-Parallax will initially:
+Selected VNAT SSH and VoIP raw captures reproduce the offline flow/window/feature pipeline exactly under the accepted release-compatible contracts.
 
-- Use the MIT Lincoln Laboratory VPN/Non-VPN Network Application Traffic Dataset (VNAT).
-- Establish leakage-resistant, capture-level training and evaluation partitions.
-- Compare conventional baselines with an uncertainty-aware model.
-- Reproduce statistical and wavelet-based traffic features.
-- Replay recorded PCAP traffic through the same feature path used at inference time.
-- Display category predictions, confidence, OOD scores, provenance, and service health.
+```text
+maximum absolute feature difference: 0.0
+```
 
-Parallax is not currently a malware detector, production intrusion-detection system, traffic
-enforcement tool, or general classifier for arbitrary Internet applications.
+The verified examples include:
+
+- 5 eligible SSH observation windows;
+- 45 eligible VoIP observation windows.
+
+### Live system acceptance
+
+A three-minute privilege-separated live run exercised the complete path:
+
+```text
+AF_PACKET
+-> sensor
+-> metadata IPC
+-> unprivileged operator
+-> flow/window/features
+-> frozen model + OOD
+-> SSE
+-> SQLite
+```
+
+Recorded acceptance evidence:
+
+| Measurement | Result |
+| --- | ---: |
+| Workload duration | 180.094985 s |
+| Generated UDP datagrams | 28,704 |
+| Configured generator flows | 16 |
+| Final prediction events | 80 |
+| SSE prediction events | 80 |
+| Persisted prediction events | 80 |
+| Terminal state | completed |
+| Sensor sampled RSS growth | 0 KiB |
+| Operator sampled RSS growth | 6,036 KiB |
+
+The generated-datagram count is a workload-generator measurement, not a claim that the sensor processed exactly that many packets.
+
+Full evidence is documented in [Performance and Soak Validation](docs/performance-report.md) and [Milestone 6 Acceptance](docs/milestone-6-acceptance.md).
+
+### Quality gate
+
+The accepted Milestone 6 repository state passed:
+
+```text
+Python tests:                 1,120
+Python statement coverage:    100%
+Python branch coverage:       100%
+Angular tests:                   79
+Ruff:                         clean
+mypy:                         clean
+Python package build:         green
+Angular production build:     green
+```
+
+## Least-privilege live sensing
+
+The FastAPI/model process does not receive packet-capture privileges.
+
+Live capture is isolated in a dedicated systemd service running as `parallax-sensor` with only the capability required for raw packet capture:
+
+```text
+CAP_NET_RAW
+```
+
+The deployed service restricts socket families to AF_PACKET and AF_UNIX and communicates with the operator through `/run/parallax/sensor.sock`.
+
+The operator itself was validated with no inherited, permitted, effective, or ambient Linux capabilities.
+
+See [Sensor Service](docs/sensor-service.md) and [Threat Model and Security Review](docs/threat-model.md).
+
+## Privacy model
+
+Parallax processes traffic metadata, which can itself be sensitive.
+
+The live operator may transiently process:
+
+- source and destination addresses;
+- ports;
+- timestamps;
+- packet sizes;
+- packet directions;
+- flow state;
+- derived feature vectors.
+
+However, the reviewed operational prediction history does not persist raw endpoint tuples, raw frames, payload bytes, or feature vectors.
+
+A security review scanned 192 persisted live prediction events and found:
+
+```text
+IPv4-looking persisted strings: 0
+MAC-looking persisted strings:  0
+```
+
+Operator-history databases are created owner-only (`0600`), and Parallax-created history directories use `0700`.
+
+## Scientific boundaries
+
+Parallax uses a frozen five-category closed set:
+
+```text
+STREAMING
+VOIP
+CHAT
+C2
+FILE_TRANSFER
+```
+
+Important interpretation limits:
+
+- raw confidence is a softmax model preference, not a calibrated probability of factual correctness;
+- OOD score is reported independently from predictive confidence;
+- the accepted VNAT test set contained no true OOD examples;
+- live traffic does not constitute new accuracy or OOD-generalization evidence;
+- VNAT `C2` represents benign SSH/RDP traffic and is not evidence of malicious command-and-control detection;
+- Parallax is not a malware detector, production IDS, enforcement system, or arbitrary Internet application classifier.
+
+Any new OOD-generalization claim requires a separate preregistered experiment.
+
+## Evidence and documentation
+
+| Document | Purpose |
+| --- | --- |
+| [Milestone 6 Acceptance](docs/milestone-6-acceptance.md) | Final live-system acceptance record |
+| [Performance and Soak Validation](docs/performance-report.md) | Load, memory, persistence, and restart evidence |
+| [Threat Model and Security Review](docs/threat-model.md) | Trust boundaries, privacy findings, and residual risk |
+| [Live Sensor Validation](docs/live-sensor-validation.md) | Live-interface and end-to-end validation |
+| [Sensor Service](docs/sensor-service.md) | Least-privilege capture architecture |
+| [Engineering Design](docs/engineering-design.md) | Full system architecture and requirements |
+| [Model Card](docs/model-card.md) | Model behavior, metrics, and limitations |
+| [Dataset Card](docs/dataset-card.md) | VNAT provenance, schema, and data limitations |
+| [Uncertainty Modeling](docs/uncertainty-modeling.md) | Frozen model-selection, calibration, and test workflow |
+| [Architecture Decisions](docs/adr/README.md) | Major engineering decisions |
 
 ## Development setup
 
@@ -67,12 +221,22 @@ Requirements:
 
 - Python 3.12
 - [uv](https://docs.astral.sh/uv/)
+- Node.js 24.19.0
+- npm 11.17.0
 
 Install the locked development environment and run the command-line entry point:
 
 ```bash
 uv sync --locked --all-groups
 uv run --locked parallax
+```
+
+Install the Angular operator-console dependencies from its committed lockfile:
+
+```bash
+cd web
+npm ci
+cd ..
 ```
 
 Inspect a verified VNAT release 1 raw dataframe:
@@ -151,32 +315,31 @@ interpretation boundaries are recorded in
 Run the complete local quality gate:
 
 ```bash
+uv lock --check
+
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked mypy src tests
-uv run --locked pytest --cov=parallax --cov-report=term-missing --cov-fail-under=100
+uv run --locked pytest \
+  --cov=parallax \
+  --cov-report=term-missing \
+  --cov-fail-under=100
+
 uv build --no-sources
+
+cd web
+npm test -- --watch=false
+npm run build
+cd ..
+
+bash -n scripts/live-soak-acceptance.sh
+
+uv run python -m json.tool \
+  docs/evidence/live-soak-2026-09-09.json \
+  >/dev/null
+
+git diff --check
 ```
-
-## Documentation
-
-- [Engineering design](docs/engineering-design.md)
-- [Project roadmap](docs/roadmap.md)
-- [Reproducible data pipeline](docs/data-pipeline.md)
-- [Capture-grouped splitting](docs/capture-splitting.md)
-- [Initial validation baselines](docs/baseline-modeling.md)
-- [Prototype and uncertainty evaluation](docs/uncertainty-modeling.md)
-- [Dataset card](docs/dataset-card.md)
-- [VNAT release manifest](data/manifests/vnat-release-1.json)
-- [Model card](docs/model-card.md)
-- [Architecture decisions](docs/adr/README.md)
-- [Contribution workflow](CONTRIBUTING.md)
-
-## Data and privacy
-
-Raw captures, HDF5 datasets, generated feature files, trained models, and experiment artifacts are
-excluded from Git. Public demonstrations will use public VNAT captures. Packet payloads are not
-required by the intended feature pipeline and will not be persisted by the operational system.
 
 ## Source material
 
