@@ -2,7 +2,7 @@
 
 ## Current status
 
-Milestones 1 through 6 are complete. Milestone 7 portfolio-release work is
+Milestones 1 through 7 are complete. Milestone 7 portfolio-release work is
 now in progress.
 
 The complete live packet-to-browser path has been validated on JPCMAIN. Live

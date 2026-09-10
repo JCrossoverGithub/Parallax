@@ -6,7 +6,7 @@ Parallax is an end-to-end network traffic intelligence system that classifies br
 
 It began as a reproducibility-focused machine-learning project around MIT Lincoln Laboratory's VNAT dataset and evolved into a complete runtime system: deterministic raw-PCAP processing, leakage-resistant data partitions, a frozen uncertainty-aware classifier, replay, live Linux capture, least-privilege sensor isolation, REST/SSE services, an Angular operations console, durable history, sustained-load validation, and an as-built threat model.
 
-> **Project status:** Milestones 1 through 6 are complete. Milestone 7 is preparing the repository for its first portfolio release.
+> **Project status:** Milestones 1 through 7 are complete. Parallax v0.1.0 is the accepted first portfolio release.
 
 ## What Parallax demonstrates
 
@@ -239,6 +239,7 @@ Any new OOD-generalization claim requires a separate preregistered experiment.
 | --- | --- |
 | [Portfolio Demo Runbook](docs/demo-runbook.md) | Reproducible live product walkthrough |
 | [Release Reproducibility](docs/reproducibility.md) | Clean-clone acceptance and external artifact reconstruction |
+| [Milestone 7 Acceptance](docs/milestone-7-acceptance.md) | Portfolio-release closure and v0.1.0 acceptance |
 | [Milestone 6 Acceptance](docs/milestone-6-acceptance.md) | Final live-system acceptance record |
 | [Performance and Soak Validation](docs/performance-report.md) | Load, memory, persistence, and restart evidence |
 | [Threat Model and Security Review](docs/threat-model.md) | Trust boundaries, privacy findings, and residual risk |
