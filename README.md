@@ -376,6 +376,17 @@ uv run python -m json.tool \
 git diff --check
 ```
 
+## License
+
+Parallax source code and project-authored documentation are released under the
+[MIT License](LICENSE).
+
+The MIT License does not grant rights to the MIT Lincoln Laboratory VNAT
+dataset or to third-party dependencies. Those materials remain subject to
+their respective publishers' and maintainers' terms.
+
+See [CHANGELOG.md](CHANGELOG.md) for public release history.
+
 ## Source material
 
 - [MIT Lincoln Laboratory VNAT dataset](https://www.ll.mit.edu/r-d/datasets/vpnnonvpn-network-application-traffic-dataset-vnat)

@@ -3,6 +3,8 @@ name = "parallax"
 version = "0.1.0"
 description = "Uncertainty-aware classification of encrypted network traffic metadata"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Josh Schultz", email = "schultzjosh0@gmail.com" }
 ]
