@@ -2,8 +2,8 @@
 
 ## Current status
 
-Milestones 1 through 5 are complete. Milestone 6 is in final operational
-security/privacy acceptance.
+Milestones 1 through 5 are complete. Milestone 6 has completed its operational
+security/privacy review and is awaiting final acceptance closure.
 
 The complete live packet-to-browser path has been validated on JPCMAIN. Live
 capture now runs behind a dedicated AF_UNIX metadata boundary in a separate
@@ -17,7 +17,7 @@ unprivileged.
 | 3. Raw-PCAP parity | Complete | Metadata-only parsing, bidirectional flows, PCAP windows, and exact selected-capture feature parity |
 | 4. Replayable runtime | Complete | Controlled replay through incremental features, frozen inference, and runtime prediction events |
 | 5. Operator layer | Complete | REST controls, SSE prediction streaming, Angular dashboard, durable replay history, and restart-safe history inspection |
-| 6. Live sensor and hardening | In progress | Live capture, durable history, structured failures, overload behavior, least-privilege isolation, and sustained-load validation implemented; final security/privacy acceptance remains |
+| 6. Live sensor and hardening | In progress | Live capture, durable history, structured failures, overload behavior, least-privilege isolation, sustained-load validation, and security/privacy review complete; final milestone closure remains |
 
 ## Milestone 4 - Replayable runtime
 
@@ -261,12 +261,14 @@ Durable live history, structured sensor/capture failures, explicit capacity
 behavior, sensor-session containment, and sustained-load validation are now
 complete.
 
-Remaining work is the final operational security/privacy review followed by
-the Milestone 6 acceptance/documentation closure.
+The final operational security/privacy review is complete.
 
-The review must reconfirm the metadata-only boundary, privilege isolation,
+The review reconfirmed the metadata-only boundary, privilege isolation,
 failure containment, persistence exclusions, and absence of packet payloads
-from ordinary logs and operational history.
+from ordinary logs and operational history. It also identified and corrected
+world-readable SQLite history permissions; operator history is now owner-only.
+
+Remaining work is the Milestone 6 acceptance/documentation closure.
 
 Live capture does not change the accepted VNAT experiment, authorize model
 retuning, or establish accuracy/OOD performance on arbitrary real-world

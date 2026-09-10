@@ -5,8 +5,8 @@
 | Field | Value |
 | --- | --- |
 | Project name | Parallax |
-| Document version | 0.7 |
-| Status | Implemented through sustained live-load validation; final Milestone 6 security/privacy acceptance in progress |
+| Document version | 0.8 |
+| Status | Milestone 6 implementation and security/privacy review complete; final acceptance closure in progress |
 | Date | 2026-09-09 |
 | Owner | Josh Schultz |
 | Intended repository | `Parallax` |
@@ -14,9 +14,9 @@
 
 > This is a living engineering design. Replay, runtime, operator-service,
 > dashboard, live sensing, bounded live state, durable live history,
-> structured failure behavior, sustained-load validation, and least-privilege
-> capture are documented as implemented. Final Milestone 6 security/privacy
-> acceptance remains explicitly open.
+> structured failure behavior, sustained-load validation, least-privilege
+> capture, and the final security/privacy review are documented as complete.
+> Milestone 6 acceptance closure remains explicitly open.
 
 ## 1. Executive Summary
 
@@ -88,8 +88,8 @@ maximum absolute feature difference `0.0`.
 The accepted model and OOD calibration remain frozen. Live observations do not
 constitute new accuracy or OOD-generalization evidence.
 
-Remaining Milestone 6 work is limited to the final operational
-security/privacy review and milestone acceptance/documentation closure.
+The final Milestone 6 operational security/privacy review is complete.
+Remaining work is limited to milestone acceptance/documentation closure.
 
 ## 2. Background
 
@@ -1029,13 +1029,12 @@ The final as-built report should clearly separate measured results from planned 
 
 ## 25. Immediate Next Step
 
-Complete the final Milestone 6 operational security/privacy review. Reconfirm the metadata-only
-sensor boundary, CAP_NET_RAW isolation, Unix-socket permissions, per-session failure containment,
-persistence exclusions, and absence of packet payloads from ordinary logs and operational history.
+Complete the Milestone 6 acceptance/documentation closure. Reconcile the final roadmap,
+engineering-design acceptance criteria, README status, live-sensor validation, performance report,
+and threat model with the implemented system.
 
-If the security/privacy review and repository-wide quality gate remain clean, update the final
-Milestone 6 acceptance record and close the milestone. Do not modify the accepted frozen
-model/calibration or reinterpret live traffic as new VNAT accuracy or OOD evidence.
+Do not modify the accepted frozen model/calibration or reinterpret live traffic as new VNAT
+accuracy or OOD evidence.
 
 ---
 
@@ -1043,6 +1042,7 @@ model/calibration or reinterpret live traffic as new VNAT accuracy or OOD eviden
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.8 | 2026-09-09 | Completed the as-built Milestone 6 security/privacy review, verified metadata-only persistence, and recorded owner-only SQLite history hardening; final milestone closure remains. |
 | 0.7 | 2026-09-09 | Recorded deterministic synthetic soak results, three-minute real privilege-separated live-load validation, restart-safe live-history acceptance, and moved Milestone 6 to final security/privacy review. |
 | 0.6 | 2026-09-09 | Added least-privilege live sensing, durable live history, structured live failures, explicit capacity behavior, and sensor-session containment. |
 | 0.1 | 2026-08-18 | Initial project definition, architecture, requirements, evaluation plan, security boundaries, milestones, and acceptance criteria |

@@ -20,8 +20,8 @@ replay history are implemented. Selected VNAT SSH and VoIP captures have exact b
 parity, and the 45-window VoIP operator run has been restored successfully across an API-process
 restart.
 
-Milestones 1 through 5 are complete. Milestone 6 live sensing is implemented through
-sustained-load validation and is now in final security/privacy acceptance:
+Milestones 1 through 5 are complete. Milestone 6 live sensing, hardening, and the
+final security/privacy review are complete; milestone acceptance closure remains:
 
 ```text
 local interface -> CAP_NET_RAW sensor -> PacketMetadata -> AF_UNIX IPC
@@ -35,9 +35,11 @@ instrumentation, browser active-session recovery, durable SQLite live history, s
 sensor/capacity failures, sustained-load validation, and a dedicated systemd sensor service. Raw
 capture remains isolated from FastAPI and the dashboard.
 
-Remaining Milestone 6 work is the final operational security/privacy review and milestone
-acceptance closure. Measured runtime/resource evidence is documented in
-[Performance and Soak Validation](docs/performance-report.md).
+Remaining Milestone 6 work is final acceptance/documentation closure. Measured
+runtime/resource evidence is documented in
+[Performance and Soak Validation](docs/performance-report.md), and the as-built
+security review is documented in
+[Threat Model and Security Review](docs/threat-model.md).
 
 Live capture remains separate from the accepted VNAT experiment and does not authorize model
 retuning or stronger accuracy/OOD claims.

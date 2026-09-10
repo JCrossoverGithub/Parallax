@@ -475,7 +475,10 @@ The packet-to-prediction path, durable live history, structured failure
 handling, explicit capacity behavior, sensor-session containment, and
 sustained-load validation are complete.
 
-Milestone 6 remains open only for the final operational security/privacy
-review and acceptance/documentation closure.
+The final operational security/privacy review is complete.
+
+Milestone 6 remains open only for acceptance/documentation closure. The
+as-built review is recorded in
+[Threat Model and Security Review](threat-model.md).
 
 The accepted VNAT experiment remains frozen throughout this work.
