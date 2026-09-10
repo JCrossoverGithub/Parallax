@@ -22,7 +22,7 @@
 
 Parallax is an uncertainty-aware network traffic monitoring system. It classifies application activity using observable packet metadata such as timing, size, and direction without decrypting or persisting packet payloads. It also calculates an out-of-distribution (OOD) score so the system can distinguish between a confident prediction and traffic that does not resemble anything represented in the training data.
 
-The initial release will use the MIT Lincoln Laboratory VPN/Non-VPN Network Application Traffic Dataset (VNAT). The system will begin with deterministic replay of prerecorded PCAP files. Packets will be grouped into bidirectional flows and fixed observation windows, transformed into statistical and wavelet features, evaluated by a versioned model, and displayed in an Angular operations dashboard.
+The accepted release uses the MIT Lincoln Laboratory VPN/Non-VPN Network Application Traffic Dataset (VNAT). The implemented system supports deterministic prerecorded-PCAP replay and least-privilege live Linux capture. Packet metadata is grouped into bidirectional flows and fixed observation windows, transformed through the shared statistical and wavelet feature path, evaluated by checksum-bound frozen model/OOD artifacts, and displayed in an Angular operations dashboard.
 
 The project has two equally important goals:
 
@@ -227,13 +227,13 @@ Given a labeled or unlabeled PCAP file, the system shall replay the traffic thro
 | Wavelet features | PyWavelets | Reproduction of wavelet feature construction |
 | Baseline ML | scikit-learn | Baselines, metrics, calibration, and preprocessing |
 | Neural ML | PyTorch | Prototypical network and learned embedding implementation |
-| Experiment tracking | MLflow | Record parameters, metrics, artifacts, and model candidates |
-| API | FastAPI and Pydantic | Typed REST and event contracts |
-| Persistence | SQLite, SQLAlchemy, and Alembic | Durable operational records and migrations |
-| Dashboard | Angular, TypeScript, RxJS, and ECharts | Tested operations UI with streaming state and charts |
-| Deployment | Docker Compose and Nginx | Reproducible local and demonstration deployment |
-| Quality | pytest, Ruff, mypy, Playwright | Unit, static, integration, and browser testing |
-| CI | GitHub Actions | CPU-only validation on each pull request |
+| Experiment evidence | Deterministic JSON artifacts and SHA-256 provenance | Record parameters, metrics, artifact identity, and accepted experiment results |
+| API | FastAPI and Pydantic | Typed REST and SSE contracts |
+| Persistence | Python `sqlite3` / SQLite | Durable replay and live operational history |
+| Dashboard | Angular, TypeScript, and RxJS | Tested operations UI with streaming state and investigation views |
+| Deployment | Linux/WSL and systemd | Least-privilege local sensor reference deployment |
+| Quality | pytest, Ruff, mypy, Vitest, and Angular test tooling | Unit, static, integration, and frontend testing |
+| CI | GitHub Actions | CPU-only Python and Angular validation on pull requests and `main` |
 
 ### 7.1 Explicitly deferred technologies
 
@@ -649,7 +649,11 @@ Names, identifiers, and optional fields remain provisional until API implementat
 
 ### 14.1 Backpressure
 
-The runtime will use bounded queues between packet replay, flow processing, feature extraction, and inference. When a queue reaches capacity, the system must apply a documented policy and emit a visible operational event. It must not grow memory without a bound.
+The as-built live runtime bounds active flow state and retained prediction-event history.
+Stale flows are evicted according to the configured policy, while admission of a new flow beyond
+the active-flow limit fails explicitly with `flow_capacity_exceeded` rather than silently
+discarding an existing valid flow. Sustained-load validation records the resulting reference
+memory behavior.
 
 ### 14.2 Idempotency
 
@@ -721,7 +725,7 @@ Logs must avoid payloads, tokens, and raw packet buffers.
 - Queue depth and queue saturation
 - Predictions by category
 - High-OOD prediction count
-- WebSocket clients and delivery failures
+- SSE clients and event-delivery failures
 - Database write latency and failures
 
 ### 16.3 Health
@@ -753,7 +757,7 @@ Health reporting will distinguish:
 | End to end | Small PCAP fixture through persisted prediction and visible event |
 | Performance | One-times-real-time replay on the reference development machine |
 
-CI will use small, redistribution-safe fixtures rather than the complete VNAT dataset.
+CI uses small, redistribution-safe fixtures rather than the complete VNAT dataset.
 
 ## 18. Proposed Repository Structure
 
@@ -1001,13 +1005,13 @@ The following initial decisions should be recorded as individual ADRs when the r
 | --- | --- | --- |
 | OQ-002 | Resolved: the supplied feature HDF5 does not retain capture identity; Parallax reconstructs features from capture-labeled raw data. | Milestone 1 |
 | OQ-003 | Resolved: accepted source identities and checksums are versioned in the VNAT release manifest. | Milestone 1 |
-| OQ-004 | Should MLflow remain a development-only service or ship in the demonstration stack? | Milestone 2 |
+| OQ-004 | Resolved: MLflow is not part of the accepted release; deterministic JSON artifacts and checksum provenance record experiment evidence. | Milestone 7 reconciliation |
 | OQ-005 | Partially resolved: 0.95 and 0.99 are frozen reference thresholds; comparative application-held-out evidence remains future work. | Separate OOD study |
 | OQ-006 | Resolved: selected SSH and VoIP raw PCAPs reproduce offline flow, window, and 129-feature records exactly under the release-compatible contracts. | Milestone 3 |
-| OQ-007 | Should runtime feature vectors be retained for public demo sessions? | Milestone 4 security review |
+| OQ-007 | Resolved: runtime feature vectors remain transient and are not retained in ordinary public-demo operational history. | Milestone 6 security review |
 | OQ-008 | Resolved: SSE is used for one-way ordered prediction delivery while replay controls remain REST operations. | Milestone 5 |
 | OQ-009 | Deferred: native Windows capture is outside the accepted Linux/WSL live-sensor scope; the current implementation uses a least-privilege AF_PACKET sensor under WSL/Linux. | Future platform work |
-| OQ-010 | Which metrics and views materially help an analyst rather than merely decorating the dashboard? | Milestone 5 usability review |
+| OQ-010 | Resolved for the initial release: the console prioritizes session state, prediction feed, confidence/OOD separation, investigation details, provenance, and durable history. Broader analyst-usability research remains future work. | Milestone 5 |
 
 ## 23. Known Risks
 

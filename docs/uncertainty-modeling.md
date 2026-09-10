@@ -227,13 +227,21 @@ that the model detects unseen applications or categories.
 - Thresholds 0.95 and 0.99 were frozen before test evaluation and were not adjusted afterward.
 - The final test result must not be used to tune or select another candidate under the same split.
 
-## Next stage
+## Runtime integration status
 
-Milestone 3 raw-PCAP ingestion, deterministic bidirectional flow construction, shared windowing,
-and selected-capture offline/runtime feature parity are complete. Milestone 4 will build timed
-replay as a bounded incremental operational path while retaining the current batch implementation
-as the parity oracle, then connect checksum-verified model inference, persistence, and ordered
-events.
+The accepted frozen model and calibration artifacts now serve both deterministic
+PCAP replay and least-privilege live monitoring.
+
+Milestones 4 through 6 completed checksum-bound runtime inference, controlled
+replay, REST/SSE operator delivery, Angular investigation views, durable
+history, bounded live-flow state, sustained-load validation, restart testing,
+and privilege-isolated live capture.
+
+Those operational results do not change the accepted VNAT experiment or create
+new accuracy or OOD-generalization evidence.
+
+Further OOD or robustness claims require a separately designed and
+preregistered experiment.
 
 OOD detection power requires a separately pre-registered application-held-out or external-dataset
 experiment; it is not inferred from the known-traffic test result.

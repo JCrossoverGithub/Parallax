@@ -141,6 +141,10 @@ event provenance, completion, pause/resume, cancellation, and failure behavior a
 repository test suite. Cancellation does not flush an incomplete final runtime window.
 
 These results establish a deterministic research/demo runtime, not production operational
-suitability. Remaining work includes the external API and event transport, persistence, operator
-dashboard, bounded performance/resource measurements under operational workloads, separately
-designed OOD/robustness experiments, and later live capture.
+suitability. REST/SSE operator transport, durable persistence, the Angular operations dashboard,
+bounded-resource validation, restart testing, and least-privilege live capture are now implemented
+and accepted.
+
+Remaining research work is limited to separately designed OOD/robustness experiments. Any
+Internet-facing or production deployment also requires deployment-specific authentication, TLS,
+authorization, retention policy, and security review.
