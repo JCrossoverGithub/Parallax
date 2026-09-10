@@ -238,6 +238,7 @@ Any new OOD-generalization claim requires a separate preregistered experiment.
 | Document | Purpose |
 | --- | --- |
 | [Portfolio Demo Runbook](docs/demo-runbook.md) | Reproducible live product walkthrough |
+| [Release Reproducibility](docs/reproducibility.md) | Clean-clone acceptance and external artifact reconstruction |
 | [Milestone 6 Acceptance](docs/milestone-6-acceptance.md) | Final live-system acceptance record |
 | [Performance and Soak Validation](docs/performance-report.md) | Load, memory, persistence, and restart evidence |
 | [Threat Model and Security Review](docs/threat-model.md) | Trust boundaries, privacy findings, and residual risk |
