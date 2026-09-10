@@ -469,16 +469,16 @@ The completed live work establishes that Parallax can:
 14. sustain the recorded real and synthetic workloads without observed
     unbounded flow or process-memory growth.
 
-## Remaining Milestone 6 hardening
+## Milestone 6 closure
 
 The packet-to-prediction path, durable live history, structured failure
-handling, explicit capacity behavior, sensor-session containment, and
-sustained-load validation are complete.
+handling, explicit capacity behavior, sensor-session containment,
+sustained-load validation, and the final operational security/privacy review
+are complete.
 
-The final operational security/privacy review is complete.
-
-Milestone 6 remains open only for acceptance/documentation closure. The
-as-built review is recorded in
+Milestone 6 is accepted and closed. The final acceptance record is
+[Milestone 6 Acceptance](milestone-6-acceptance.md), and the as-built security
+review is recorded in
 [Threat Model and Security Review](threat-model.md).
 
 The accepted VNAT experiment remains frozen throughout this work.

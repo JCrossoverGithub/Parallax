@@ -5,8 +5,8 @@
 | Field | Value |
 | --- | --- |
 | Project name | Parallax |
-| Document version | 0.8 |
-| Status | Milestone 6 implementation and security/privacy review complete; final acceptance closure in progress |
+| Document version | 0.9 |
+| Status | Milestones 1 through 6 complete; Milestone 7 portfolio release is next |
 | Date | 2026-09-09 |
 | Owner | Josh Schultz |
 | Intended repository | `Parallax` |
@@ -15,8 +15,8 @@
 > This is a living engineering design. Replay, runtime, operator-service,
 > dashboard, live sensing, bounded live state, durable live history,
 > structured failure behavior, sustained-load validation, least-privilege
-> capture, and the final security/privacy review are documented as complete.
-> Milestone 6 acceptance closure remains explicitly open.
+> capture, the final security/privacy review, and Milestone 6 acceptance are
+> documented as complete. Milestone 7 portfolio release is next.
 
 ## 1. Executive Summary
 
@@ -33,9 +33,10 @@ This is not intended to be presented as a production intrusion-detection system 
 
 ### 1.1 Current implementation checkpoint
 
-Milestones 1 through 5 are complete. Milestone 6 has established the full live
-packet-to-browser path and completed its sustained-load hardening. Final
-operational security/privacy acceptance remains.
+Milestones 1 through 6 are complete. Milestone 6 established the full live
+packet-to-browser path, completed sustained-load hardening, passed its
+operational security/privacy review, and is formally accepted. Milestone 7
+portfolio release is next.
 
 The implemented system supports:
 
@@ -923,6 +924,9 @@ Exit criteria:
 
 - Live metadata can be processed at the measured reference rate without elevated privileges in the API or UI components.
 
+Status: **Satisfied.** See
+[Milestone 6 Acceptance](milestone-6-acceptance.md).
+
 ### Milestone 7: Portfolio release
 
 Deliverables:
@@ -962,9 +966,17 @@ The first portfolio release is acceptable when:
 
 No target accuracy is declared in advance. Baseline results will determine realistic performance gates. This avoids choosing success criteria from the paper's reported test result before reproducing its data partitioning and checking for capture-level leakage.
 
-Criteria 1 through 7 are now implemented, with criterion 7 bounded to known-traffic OOD
-false-positive behavior. OOD detection power, runtime parity, and the operational criteria remain
-future work.
+Milestones 1 through 6 now provide implementation and evidence for the data,
+modeling, runtime-parity, operator, persistence, privacy, and structured-failure
+criteria above, including criteria 8 through 14.
+
+Criterion 7 remains scientifically bounded to known-traffic OOD false-positive
+behavior because the accepted final test contained no true OOD examples.
+True OOD detection power remains a separate future experiment.
+
+The complete criteria 1 through 15 will be reconfirmed from the final
+release environment during Milestone 7 rather than treating Milestone 6
+closure as portfolio-release acceptance.
 
 ## 21. Architecture Decision Record Index
 
@@ -1029,12 +1041,14 @@ The final as-built report should clearly separate measured results from planned 
 
 ## 25. Immediate Next Step
 
-Complete the Milestone 6 acceptance/documentation closure. Reconcile the final roadmap,
-engineering-design acceptance criteria, README status, live-sensor validation, performance report,
-and threat model with the implemented system.
+Begin Milestone 7: Portfolio Release.
 
-Do not modify the accepted frozen model/calibration or reinterpret live traffic as new VNAT
-accuracy or OOD evidence.
+Reconcile the public README, as-built engineering material, architecture and
+evaluation figures, demonstration workflow, limitations, and release-level
+reproducibility around the system accepted through Milestone 6.
+
+Do not modify the accepted frozen model/calibration or reinterpret live traffic
+as new VNAT accuracy or OOD evidence.
 
 ---
 
@@ -1042,6 +1056,7 @@ accuracy or OOD evidence.
 
 | Version | Date | Summary |
 | --- | --- | --- |
+| 0.9 | 2026-09-09 | Closed Milestone 6 after live runtime, least-privilege capture, durable history, structured failures, sustained-load validation, restart testing, security/privacy review, and owner-only history hardening all met acceptance. |
 | 0.8 | 2026-09-09 | Completed the as-built Milestone 6 security/privacy review, verified metadata-only persistence, and recorded owner-only SQLite history hardening; final milestone closure remains. |
 | 0.7 | 2026-09-09 | Recorded deterministic synthetic soak results, three-minute real privilege-separated live-load validation, restart-safe live-history acceptance, and moved Milestone 6 to final security/privacy review. |
 | 0.6 | 2026-09-09 | Added least-privilege live sensing, durable live history, structured live failures, explicit capacity behavior, and sensor-session containment. |

@@ -610,4 +610,6 @@ Validated properties include:
 
 No additional implementation-blocking finding remains from this review.
 
-Milestone 6 remains open only for final acceptance/documentation closure.
+The security/privacy portion of Milestone 6 is accepted. Final milestone
+closure is recorded in
+[Milestone 6 Acceptance](milestone-6-acceptance.md).

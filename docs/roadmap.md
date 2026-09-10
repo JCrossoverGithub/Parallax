@@ -17,7 +17,7 @@ unprivileged.
 | 3. Raw-PCAP parity | Complete | Metadata-only parsing, bidirectional flows, PCAP windows, and exact selected-capture feature parity |
 | 4. Replayable runtime | Complete | Controlled replay through incremental features, frozen inference, and runtime prediction events |
 | 5. Operator layer | Complete | REST controls, SSE prediction streaming, Angular dashboard, durable replay history, and restart-safe history inspection |
-| 6. Live sensor and hardening | In progress | Live capture, durable history, structured failures, overload behavior, least-privilege isolation, sustained-load validation, and security/privacy review complete; final milestone closure remains |
+| 6. Live sensor and hardening | Complete | Live capture, durable history, structured failures, overload behavior, least-privilege isolation, sustained-load validation, security/privacy review, and acceptance closure complete |
 
 ## Milestone 4 - Replayable runtime
 
@@ -182,9 +182,9 @@ Milestone 5 is covered by:
 - Angular production builds.
 - Repository-wide locked dependency, lint, type, test, coverage, and build gates.
 
-Detailed processing-latency instrumentation, dropped-window metrics, resource-bound measurements,
-and live-sensor observability remain part of Milestone 6 hardening rather than being invented solely
-to extend Milestone 5.
+Processing-latency instrumentation, bounded-resource measurements,
+live-sensor observability, and explicit capacity/failure behavior were completed
+as Milestone 6 work rather than retrofitted into Milestone 5.
 
 ## Milestone 6 - Live sensor and hardening
 
@@ -253,22 +253,22 @@ The following Milestone 6 capabilities are implemented and validated:
 - three-minute real privilege-separated live soak with SSE, persistence, process-memory sampling,
   clean finalization, and operator-restart history validation.
 
-### Remaining hardening
+### Acceptance closure
 
-Milestone 6 is not yet closed.
+Milestone 6 is complete.
 
 Durable live history, structured sensor/capture failures, explicit capacity
-behavior, sensor-session containment, and sustained-load validation are now
-complete.
+behavior, sensor-session containment, sustained-load validation, and the final
+security/privacy review are complete.
 
-The final operational security/privacy review is complete.
+The security review reconfirmed the metadata-only boundary, privilege
+isolation, failure containment, persistence exclusions, and absence of packet
+payloads from ordinary logs and operational history. It also identified and
+corrected world-readable SQLite history permissions; operator history is now
+owner-only.
 
-The review reconfirmed the metadata-only boundary, privilege isolation,
-failure containment, persistence exclusions, and absence of packet payloads
-from ordinary logs and operational history. It also identified and corrected
-world-readable SQLite history permissions; operator history is now owner-only.
-
-Remaining work is the Milestone 6 acceptance/documentation closure.
+The final acceptance record is
+[Milestone 6 Acceptance](milestone-6-acceptance.md).
 
 Live capture does not change the accepted VNAT experiment, authorize model
 retuning, or establish accuracy/OOD performance on arbitrary real-world
